@@ -1,0 +1,1593 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>LM Maíz</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="theme-color" content="#1f5c33">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+<style>
+  :root{
+    --paper-050:#ffffff; --paper-100:#ffffff; --paper-200:#eef1ec;
+    --soil-900:#1c2419; --soil-700:#4a4331; --soil-500:#6b7268;
+    --grain-500:#2e7d46; --grain-600:#1f5c33; --grain-100:#e6f5ea;
+    --sky-500:#2f6fa0; --sky-600:#1f5578; --sky-100:#e5f0f8;
+    --alert-500:#c05a35; --alert-100:#f7e2d7;
+    --line:#e3e6df;
+    --tile-green-a:#2e7d46; --tile-green-b:#1a4d2c;
+    --tile-blue-a:#3179ae; --tile-blue-b:#1c4666;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{height:100%;}
+  body{
+    background:var(--paper-100); color:var(--soil-900);
+    font-family:'Inter',sans-serif;
+    min-height:100vh; min-height:100dvh;
+  }
+  .device{
+    width:100%; max-width:480px; height:100vh; height:100dvh;
+    margin:0 auto; background:var(--paper-050);
+    overflow:hidden; position:relative; display:flex; flex-direction:column;
+  }
+  .screen{ display:none; flex-direction:column; height:100%; overflow:hidden; }
+  .screen.active{ display:flex; }
+  .mono{ font-family:'JetBrains Mono',monospace; }
+
+  #login-who{
+    padding:40px 26px 26px; align-items:center; overflow-y:auto;
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.9), rgba(255,255,255,0.98) 55%, var(--paper-050) 75%),
+      linear-gradient(160deg, #3d9159, var(--tile-green-a) 60%, var(--tile-green-b));
+  }
+  .login-brand{ display:flex; flex-direction:column; align-items:center; gap:10px; margin-bottom:30px; }
+  .login-mark{ width:56px; height:56px; border-radius:14px; background:linear-gradient(135deg,var(--grain-500),var(--sky-500)); display:flex; align-items:center; justify-content:center; font-family:'Space Grotesk'; font-weight:700; color:#fff; font-size:20px; }
+  .login-title{ font-family:'Space Grotesk'; font-size:19px; font-weight:600; }
+  .login-sub{ font-size:12.5px; color:var(--soil-500); }
+  .step-label{ font-size:12px; color:var(--soil-500); text-transform:uppercase; letter-spacing:0.06em; align-self:flex-start; margin-bottom:10px; font-weight:600;}
+
+  .who-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:12px; width:100%; }
+  .who-card{
+    background:linear-gradient(155deg,var(--tile-green-a),var(--tile-green-b)); border-radius:18px;
+    padding:20px 10px 16px; display:flex; flex-direction:column; align-items:center; gap:10px;
+    text-align:center; box-shadow:0 6px 14px rgba(26,77,44,0.25); cursor:pointer;
+  }
+  .who-card.sky{ background:linear-gradient(155deg,var(--tile-blue-a),var(--tile-blue-b)); box-shadow:0 6px 14px rgba(28,70,102,0.25); }
+  .who-avatar{ width:44px; height:44px; border-radius:50%; background:rgba(255,255,255,0.16); border:1.5px solid rgba(255,255,255,0.7); color:#fff; display:flex; align-items:center; justify-content:center; font-family:'Space Grotesk'; font-weight:700; font-size:15px; }
+  .who-name{ font-size:13px; font-weight:600; line-height:1.2; color:#fff; }
+  .who-role{ font-size:10px; color:rgba(255,255,255,0.75); text-transform:uppercase; letter-spacing:0.05em; font-weight:600;}
+
+  .empty-note{ color:rgba(255,255,255,0.85); font-size:13px; text-align:center; padding:30px 10px; }
+
+  #login-pin{ background:linear-gradient(160deg,var(--tile-green-a),var(--tile-green-b) 55%,#12321f); align-items:center; padding:44px 26px 26px; }
+  .pin-wrap{ width:100%; display:flex; flex-direction:column; align-items:center; }
+  .pin-person{ display:flex; align-items:center; gap:10px; margin-bottom:22px; background:rgba(0,0,0,0.15); border-radius:30px; padding:8px 18px 8px 8px; }
+  .pin-person .who-avatar{ width:34px; height:34px; font-size:13px; }
+  .pin-person span{ font-size:13.5px; font-weight:600; color:#fff; }
+  .pin-dots{ display:flex; gap:14px; margin-bottom:26px; height:16px; }
+  .pin-dot{ width:16px; height:16px; border-radius:50%; border:2px solid rgba(255,255,255,0.5); }
+  .pin-dot.filled{ background:#efc074; border-color:#efc074; }
+  .pin-pad{ display:grid; grid-template-columns:repeat(3,1fr); gap:12px; width:100%; }
+  .pin-key{ background:rgba(0,0,0,0.15); border-radius:14px; padding:18px 0; text-align:center; font-family:'Space Grotesk'; font-size:21px; font-weight:600; color:#fff; cursor:pointer; user-select:none; }
+  .pin-key:active{ background:rgba(0,0,0,0.3); }
+  .pin-key.ghost{ background:transparent; }
+  .pin-error{ color:#ffb199; font-size:12.5px; margin-top:14px; min-height:16px; }
+  .pin-back{ align-self:flex-start; color:rgba(255,255,255,0.7); font-size:13px; margin-bottom:18px; cursor:pointer; }
+  .password-field{ width:100%; background:rgba(0,0,0,0.15); border:1.5px solid rgba(255,255,255,0.25); border-radius:14px; padding:16px; color:#fff; font-size:15px; font-family:'Inter'; margin-bottom:8px; }
+  .password-field::placeholder{ color:rgba(255,255,255,0.5); }
+  .btn-login{ width:100%; background:#efc074; color:#1c2419; border:none; border-radius:14px; padding:16px 0; font-family:'Inter'; font-weight:700; font-size:14.5px; margin-top:10px; cursor:pointer; }
+
+  .home-top{ color:#fff; padding:22px 20px 20px; border-radius:0 0 22px 22px; }
+  .home-top.campo{ background:linear-gradient(135deg,var(--tile-green-b),var(--tile-green-a)); }
+  .home-top.planta{ background:linear-gradient(135deg,var(--tile-blue-b),var(--tile-blue-a)); }
+  .home-top.ambos{ background:linear-gradient(135deg,#1c2419,#3a4a30); }
+  .home-greet{ display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:16px;}
+  .home-greet .hi{ font-size:12px; opacity:0.85; }
+  .home-greet .name{ font-family:'Space Grotesk'; font-size:18px; font-weight:600; margin-top:2px;}
+  .logout-btn{ width:30px; height:30px; border-radius:50%; background:rgba(255,255,255,0.18); display:flex; align-items:center; justify-content:center; font-size:13px; cursor:pointer; }
+
+  .active-project{ background:#fff; border-radius:14px; padding:12px 14px; display:flex; justify-content:space-between; align-items:center; box-shadow:0 4px 12px rgba(0,0,0,0.12); cursor:pointer; }
+  .active-project .apl{ font-size:10.5px; text-transform:uppercase; letter-spacing:0.06em; color:var(--soil-500); }
+  .active-project .apv{ font-family:'JetBrains Mono'; font-size:15px; font-weight:700; margin-top:2px; color:var(--soil-900);}
+  .active-project .change{ font-size:11.5px; background:var(--grain-100); color:var(--grain-600); padding:6px 10px; border-radius:8px; font-weight:600; flex-shrink:0; margin-left:10px;}
+
+  .home-body{ padding:20px; flex:1; background:var(--paper-100); overflow-y:auto; }
+  .segment-label{ font-size:11.5px; text-transform:uppercase; letter-spacing:0.07em; color:var(--soil-500); font-weight:700; margin:4px 0 12px; display:flex; align-items:center; gap:8px;}
+  .segment-label::after{ content:''; flex:1; height:1px; background:var(--line); }
+
+  .task-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:12px; margin-bottom:24px; }
+  .task-card{
+    background:linear-gradient(155deg,var(--tile-green-a),var(--tile-green-b)); border-radius:18px;
+    padding:18px 16px 16px; display:flex; flex-direction:column; gap:14px;
+    position:relative; min-height:88px; justify-content:space-between;
+    box-shadow:0 6px 14px rgba(26,77,44,0.22); cursor:pointer;
+  }
+  .task-card.sky{ background:linear-gradient(155deg,var(--tile-blue-a),var(--tile-blue-b)); box-shadow:0 6px 14px rgba(28,70,102,0.22); }
+  .task-icon{ width:24px; height:24px; }
+  .task-icon svg{ width:100%; height:100%; stroke:#fff; fill:none; stroke-width:1.6; opacity:0.95; }
+  .task-name{ font-size:13px; font-weight:600; color:#fff; line-height:1.2; }
+
+  .bottom-nav{ display:flex; justify-content:space-around; padding:12px 10px 16px; border-top:1px solid var(--line); background:#fff; }
+  .nav-btn{ display:flex; flex-direction:column; align-items:center; gap:3px; font-size:10px; color:var(--soil-500); font-weight:600; }
+  .nav-btn.active{ color:var(--grain-600); }
+  .nav-ic{ font-size:17px; }
+
+  .form-header{ padding:18px 18px 16px; display:flex; align-items:center; gap:12px; background:var(--grain-600); }
+  .form-header.sky{ background:var(--sky-600); }
+  .form-back{ width:34px; height:34px; border-radius:10px; background:rgba(255,255,255,0.12); color:#fff; display:flex; align-items:center; justify-content:center; font-size:16px; flex-shrink:0; cursor:pointer;}
+  .form-header .ftitle{ font-family:'Space Grotesk'; font-size:17px; font-weight:600; color:#fff; }
+  .search-box{ padding:14px 18px 0; }
+  .search-input{ background:var(--paper-200); border:none; border-radius:12px; padding:12px 14px; width:100%; font-size:13.5px; font-family:'Inter'; }
+  .reg-list{ padding:14px 18px 20px; overflow-y:auto; flex:1; display:flex; flex-direction:column; gap:10px; background:var(--paper-100); }
+  .reg-item{ background:#fff; border-left:4px solid var(--grain-500); border-radius:10px; padding:14px 15px; display:flex; align-items:center; gap:12px; box-shadow:0 2px 8px rgba(0,0,0,0.06); cursor:pointer; }
+  .reg-info .rtitle{ font-size:13.5px; font-weight:700; color:var(--soil-900); }
+  .reg-info .rsub{ font-size:11.5px; color:var(--soil-500); margin-top:1px; }
+  .reg-chev{ margin-left:auto; color:var(--soil-500); font-size:15px; }
+
+  .lot-card{ margin:14px 18px 4px; background:#fff; border-radius:14px; padding:14px 15px; box-shadow:0 4px 14px rgba(0,0,0,0.08); display:flex; align-items:center; gap:12px; }
+  .lot-card .dot{ width:10px; height:10px; border-radius:50%; background:var(--grain-500); flex-shrink:0; }
+  .lot-card .ltitle{ font-family:'Space Grotesk'; font-size:16px; font-weight:700; color:var(--soil-900); }
+  .lot-card .lsub{ font-size:11.5px; color:var(--soil-500); margin-top:1px; }
+
+  .reg-num{ width:22px; height:22px; border-radius:5px; background:var(--soil-900); color:#fff; font-family:'JetBrains Mono'; font-weight:700; font-size:11.5px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+
+  .fab-add{
+    position:absolute; left:18px; right:18px; bottom:20px;
+    background:var(--grain-500); color:#fff; border:none; border-radius:12px;
+    padding:15px 0; font-family:'Inter'; font-weight:700; font-size:14.5px;
+    display:flex; align-items:center; justify-content:center; gap:8px;
+    box-shadow:0 8px 18px rgba(46,125,70,0.3); cursor:pointer;
+  }
+  .fab-add.sky{ background:var(--sky-500); box-shadow:0 8px 18px rgba(47,111,160,0.3); }
+
+  .form-scroll{ padding:14px 18px 100px; overflow-y:auto; flex:1; display:flex; flex-direction:column; gap:18px; background:var(--paper-100); }
+  .field-label{ font-size:12px; font-weight:700; color:var(--soil-500); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:9px; }
+  .field-input{ background:var(--paper-200); border:1.5px solid var(--line); border-radius:12px; padding:14px; font-size:14px; font-family:'JetBrains Mono'; color:var(--soil-900); width:100%; }
+  .photo-add{ border:1.5px dashed var(--line); border-radius:12px; padding:22px; text-align:center; color:var(--soil-500); font-size:12.5px; cursor:pointer; background:var(--paper-200); }
+  .photo-preview{ width:100%; border-radius:12px; margin-top:10px; display:none; max-height:220px; object-fit:cover; }
+  .photo-status{ font-size:11.5px; color:var(--soil-500); margin-top:6px; }
+  .field-row{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .btn-save{ position:absolute; left:18px; right:18px; bottom:20px; background:var(--grain-500); color:#fff; border:none; border-radius:12px; padding:16px 0; font-family:'Inter'; font-weight:700; font-size:14.5px; box-shadow:0 8px 18px rgba(46,125,70,0.3); cursor:pointer; }
+  .btn-save.sky{ background:var(--sky-500); box-shadow:0 8px 18px rgba(47,111,160,0.3); }
+  .empty-list{ text-align:center; color:var(--soil-500); font-size:13px; padding:30px 10px; }
+  .pill-group{ display:flex; gap:9px; }
+  .pill{ flex:1; background:#fff; border:1.5px solid var(--line); border-radius:12px; padding:14px; font-size:13.5px; font-weight:500; color:var(--soil-900); display:flex; align-items:center; justify-content:center; gap:10px; cursor:pointer; }
+  .pill .ring{ width:16px; height:16px; border-radius:50%; border:2px solid var(--line); flex-shrink:0; }
+  .pill.selected{ border-color:var(--sky-500); background:var(--sky-100); }
+  .pill.selected .ring{ border-color:var(--sky-500); background:var(--sky-500); box-shadow:inset 0 0 0 3px var(--sky-100); }
+
+  #trackeo-map-container{ flex:1; position:relative; }
+  #trackeo-leaflet{ position:absolute; inset:0; }
+  .trackeo-bar{ background:#fff; border-top:1px solid var(--line); padding:14px 18px calc(14px + env(safe-area-inset-bottom)); display:flex; flex-direction:column; gap:10px; }
+  .trackeo-status{ display:flex; justify-content:space-between; align-items:center; font-size:12.5px; color:var(--soil-500); }
+  .trackeo-status b{ color:var(--soil-900); font-family:'JetBrains Mono'; }
+  .trackeo-actions{ display:flex; gap:10px; }
+  .btn-trackeo-point{ flex:1; background:var(--grain-500); color:#fff; border:none; border-radius:12px; padding:15px 0; font-family:'Inter'; font-weight:700; font-size:14px; cursor:pointer; }
+  .btn-trackeo-undo{ background:var(--paper-200); color:var(--soil-700); border:none; border-radius:12px; padding:15px 16px; font-family:'Inter'; font-weight:600; font-size:13px; cursor:pointer; }
+  .btn-trackeo-close{ background:var(--grain-600); color:#fff; border:none; border-radius:12px; padding:15px 0; font-family:'Inter'; font-weight:700; font-size:14px; cursor:pointer; width:100%; opacity:0.4; pointer-events:none; }
+  .btn-trackeo-close.ready{ opacity:1; pointer-events:auto; }
+  .trackeo-gps-error{ color:var(--alert-500); font-size:12px; text-align:center; }
+  .info-banner{ background:var(--grain-100); border-radius:12px; padding:14px 15px; display:flex; gap:12px; align-items:flex-start; margin-bottom:6px; }
+  .info-banner .ib-icon{ font-size:16px; }
+  .info-banner .ib-title{ font-size:13px; font-weight:700; color:var(--grain-600); }
+  .info-banner .ib-text{ font-size:12px; color:var(--soil-700); margin-top:2px; line-height:1.4; }
+  .status-pill{ display:inline-block; padding:2px 8px; border-radius:20px; font-size:9.5px; font-weight:600; margin-top:3px;}
+  .status-sembrado{ background:var(--sky-100); color:var(--sky-600); }
+  .status-cosechado{ background:var(--grain-100); color:var(--grain-600); }
+  .status-sinsembrar{ background:var(--paper-200); color:var(--soil-500); }
+  .loading, .empty-list{ text-align:center; color:var(--soil-500); font-size:13px; padding:30px 10px; }
+  .toast{ position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:var(--soil-900); color:#fff; padding:10px 18px; border-radius:10px; font-size:12.5px; z-index:20; opacity:0; transition:opacity .25s; pointer-events:none; }
+  .toast.show{ opacity:1; }
+</style>
+</head>
+<body>
+
+<div class="device">
+
+  <div class="screen active" id="login-who">
+    <div class="login-brand">
+      <div class="login-mark">LM</div>
+      <div class="login-title">LM Maíz</div>
+      <div class="login-sub">Campo &amp; Planta</div>
+    </div>
+    <div class="step-label" style="color:var(--soil-500);">¿Quién sos?</div>
+    <div class="who-grid" id="operarios-grid">
+      <div class="empty-note">Cargando operarios…</div>
+    </div>
+  </div>
+
+  <div class="screen" id="login-pin">
+    <div class="pin-back" onclick="goTo('login-who')">← Elegir otro</div>
+    <div class="pin-wrap">
+      <div class="pin-person"><div class="who-avatar" id="pin-avatar"></div><span id="pin-name"></span></div>
+      <div class="step-label" style="align-self:center; color:rgba(255,255,255,0.65);">Ingresá tu contraseña</div>
+      <input type="password" id="password-input" class="password-field" placeholder="Contraseña" autocomplete="current-password" onkeydown="if(event.key==='Enter') verificarPin()">
+      <div class="pin-error" id="pin-error"></div>
+      <button class="btn-login" onclick="verificarPin()">Iniciar sesión</button>
+    </div>
+  </div>
+
+  <div class="screen" id="home">
+    <div class="home-top" id="home-top">
+      <div class="home-greet">
+        <div><div class="hi">Hola,</div><div class="name" id="home-name">—</div></div>
+        <div class="logout-btn" onclick="logout()">⏻</div>
+      </div>
+      <div class="active-project" onclick="abrirSelectorProyecto()">
+        <div><div class="apl">Proyecto activo</div><div class="apv" id="active-project-label">Elegir proyecto</div></div>
+        <div class="change">Cambiar</div>
+      </div>
+    </div>
+
+    <div class="home-body" id="home-body"></div>
+
+    <div class="bottom-nav">
+      <div class="nav-btn active"><div class="nav-ic">⌂</div>Inicio</div>
+      <div class="nav-btn"><div class="nav-ic">🕘</div>Historial</div>
+      <div class="nav-btn"><div class="nav-ic">📶</div>Sync</div>
+    </div>
+  </div>
+
+  <!-- ===== MOTOR GENÉRICO: repetibles (lista + nuevo registro) ===== -->
+  <div class="screen" id="generic-list" style="position:relative;">
+    <div class="form-header" id="generic-list-header">
+      <div class="form-back" onclick="goTo('home')">←</div>
+      <div><div class="ftitle" id="generic-list-title"></div></div>
+    </div>
+    <div class="lot-card"><div class="dot" id="generic-list-dot"></div><div><div class="ltitle" id="generic-list-lot-title">—</div><div class="lsub" id="generic-list-lot-sub"></div></div></div>
+    <div class="reg-list" id="generic-list-items"><div class="loading">Cargando…</div></div>
+    <button class="fab-add" id="generic-list-fab" onclick="abrirGenericNew()">＋ Nuevo registro</button>
+  </div>
+
+  <div class="screen" id="generic-new" style="position:relative;">
+    <div class="form-header" id="generic-new-header">
+      <div class="form-back" id="generic-new-back">←</div>
+      <div><div class="ftitle" id="generic-new-title">Nuevo registro</div></div>
+    </div>
+    <div class="lot-card"><div class="dot" id="generic-new-dot"></div><div><div class="ltitle" id="generic-new-lot-title">—</div><div class="lsub" id="generic-new-lot-sub"></div></div></div>
+    <div class="form-scroll" id="generic-new-fields"></div>
+    <div class="pin-error" id="generic-new-error" style="position:absolute; bottom:74px; left:18px; right:18px; text-align:center; margin:0;"></div>
+    <button class="btn-save" id="generic-new-save" onclick="guardarGenericNew()">Guardar</button>
+  </div>
+
+  <!-- ===== MOTOR GENÉRICO: registro único por proyecto ===== -->
+  <div class="screen" id="generic-single" style="position:relative;">
+    <div class="form-header" id="generic-single-header">
+      <div class="form-back" onclick="goTo('home')">←</div>
+      <div><div class="ftitle" id="generic-single-title"></div></div>
+    </div>
+    <div class="lot-card"><div class="dot" id="generic-single-dot"></div><div><div class="ltitle" id="generic-single-lot-title">—</div><div class="lsub" id="generic-single-lot-sub"></div></div></div>
+    <div class="form-scroll" id="generic-single-fields"></div>
+    <div class="pin-error" id="generic-single-error" style="position:absolute; bottom:74px; left:18px; right:18px; text-align:center; margin:0;"></div>
+    <button class="btn-save" id="generic-single-save" onclick="guardarGenericSingle()">Guardar</button>
+  </div>
+
+  <!-- ===== APLICACIONES: submenú + De Protocolo (3 slots fijos) ===== -->
+  <div class="screen" id="aplicaciones-menu" style="position:relative;">
+    <div class="form-header">
+      <div class="form-back" onclick="goTo('home')">←</div>
+      <div><div class="ftitle">Aplicaciones</div></div>
+    </div>
+    <div class="lot-card"><div class="dot"></div><div><div class="ltitle" id="aplic-menu-lot-title">—</div><div class="lsub" id="aplic-menu-lot-sub"></div></div></div>
+    <div class="reg-list">
+      <div class="reg-item" onclick="abrirProtocolo()">
+        <div class="reg-num">3</div>
+        <div class="reg-info"><div class="rtitle">De Protocolo</div><div class="rsub">Aplicación 1, 2 y 3 fijas</div></div>
+        <div class="reg-chev">›</div>
+      </div>
+      <div class="reg-item" onclick="abrirGenericList('proteccion')">
+        <div class="reg-num">∞</div>
+        <div class="reg-info"><div class="rtitle">Protección de Cultivos</div><div class="rsub">Aplicaciones libres, repetible</div></div>
+        <div class="reg-chev">›</div>
+      </div>
+      <div class="reg-item" onclick="abrirGenericList('lecturaprotocolo')">
+        <div class="reg-num">∞</div>
+        <div class="reg-info"><div class="rtitle">Lectura aplicación de Protocolo</div><div class="rsub">Escala de fitotoxicidad 0-5</div></div>
+        <div class="reg-chev">›</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="screen" id="protocolo-edit" style="position:relative;">
+    <div class="form-header">
+      <div class="form-back" onclick="goTo('aplicaciones-menu')">←</div>
+      <div><div class="ftitle">De Protocolo</div></div>
+    </div>
+    <div class="lot-card"><div class="dot"></div><div><div class="ltitle" id="protocolo-lot-title">—</div><div class="lsub" id="protocolo-lot-sub"></div></div></div>
+    <div class="form-scroll" id="protocolo-fields"><div class="loading">Cargando…</div></div>
+    <div class="pin-error" id="protocolo-error" style="position:absolute; bottom:74px; left:18px; right:18px; text-align:center; margin:0;"></div>
+    <button class="btn-save" onclick="guardarProtocolo()">Guardar</button>
+  </div>
+
+  <!-- ===== TRACKEO: mapa (caminar el perímetro) ===== -->
+  <!-- ===== TRACKEO: elegir modo de captura ===== -->
+  <div class="screen" id="trackeo-mode" style="position:relative;">
+    <div class="form-header">
+      <div class="form-back" onclick="goTo('home')">←</div>
+      <div><div class="ftitle">Trackeo</div></div>
+    </div>
+    <div class="form-scroll">
+      <div class="info-banner">
+        <div class="ib-icon">🎯</div>
+        <div><div class="ib-title">Elegí cómo marcar el lote</div><div class="ib-text">Para parcelas chicas, "Dibujar" suele dar más precisión que el GPS del celular.</div></div>
+      </div>
+      <div class="task-card" style="min-height:auto; padding:20px;" onclick="iniciarModoGps()">
+        <div class="task-icon"><svg viewBox="0 0 24 24"><path d="M12 2C8 2 5 5 5 9c0 5.5 7 13 7 13s7-7.5 7-13c0-4-3-7-7-7z"/><circle cx="12" cy="9" r="2.3"/></svg></div>
+        <div><div class="task-name">Recorrer GPS</div><div style="color:rgba(255,255,255,0.75); font-size:11.5px; margin-top:4px;">Caminá el perímetro, se marca solo</div></div>
+      </div>
+      <div class="task-card" style="min-height:auto; padding:20px;" onclick="iniciarModoDibujo()">
+        <div class="task-icon"><svg viewBox="0 0 24 24"><path d="M4 20l4-1 10-10-3-3L5 16l-1 4z"/></svg></div>
+        <div><div class="task-name">Dibujar en el mapa</div><div style="color:rgba(255,255,255,0.75); font-size:11.5px; margin-top:4px;">Tocá el mapa para marcar cada vértice a mano</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="screen" id="trackeo-map" style="position:relative;">
+    <div class="form-header">
+      <div class="form-back" onclick="cerrarTrackeoMap()">←</div>
+      <div><div class="ftitle" id="trackeo-map-title">Trackeo</div></div>
+    </div>
+    <div id="trackeo-map-container">
+      <div id="trackeo-leaflet"></div>
+    </div>
+    <div class="trackeo-bar">
+      <div class="trackeo-status">
+        <span>Puntos: <b id="trackeo-punto-count">0</b></span>
+        <span id="trackeo-superficie">—</span>
+      </div>
+      <div class="trackeo-gps-error" id="trackeo-gps-error"></div>
+
+      <!-- Recorrer GPS: iniciar/detener tracking continuo -->
+      <div class="trackeo-actions" id="trackeo-gps-controls" style="display:none;">
+        <button class="btn-trackeo-undo" onclick="deshacerPuntoTrackeo()">Deshacer</button>
+        <button class="btn-trackeo-point" id="btn-gps-toggle" onclick="toggleRecorridoGps()">▶ Iniciar recorrido</button>
+      </div>
+
+      <!-- Dibujar: instrucción + deshacer -->
+      <div class="trackeo-actions" id="trackeo-draw-controls" style="display:none;">
+        <button class="btn-trackeo-undo" onclick="deshacerPuntoTrackeo()">Deshacer</button>
+        <div style="flex:1; display:flex; align-items:center; justify-content:center; font-size:12.5px; color:var(--soil-500); text-align:center;">Tocá el mapa para agregar un vértice</div>
+      </div>
+
+      <button class="btn-trackeo-close" id="btn-cerrar-poligono" onclick="cerrarPoligonoTrackeo()">Cerrar polígono y continuar →</button>
+    </div>
+  </div>
+
+  <!-- ===== TRACKEO: formulario de metadata ===== -->
+  <div class="screen" id="trackeo-form" style="position:relative;">
+    <div class="form-header">
+      <div class="form-back" onclick="goTo('trackeo-map')">←</div>
+      <div><div class="ftitle">Trackeo — datos del lote</div></div>
+    </div>
+    <div class="lot-card"><div class="dot"></div><div><div class="ltitle">Superficie trackeada</div><div class="lsub" id="trackeo-form-superficie">—</div></div></div>
+    <div class="form-scroll" id="trackeo-form-fields"></div>
+    <div class="pin-error" id="trackeo-form-error" style="position:absolute; bottom:74px; left:18px; right:18px; text-align:center; margin:0;"></div>
+    <button class="btn-save" onclick="guardarTrackeo()">Guardar</button>
+  </div>
+
+  <div class="screen" id="seleccionar-proyecto">
+    <div class="form-header">
+      <div class="form-back" onclick="goTo('home')">←</div>
+      <div><div class="ftitle">Seleccionar Proyecto</div></div>
+    </div>
+    <div class="search-box">
+      <input class="search-input" id="proyecto-search" placeholder="🔍 Buscar proyecto o línea..." oninput="filterProyectos()">
+    </div>
+    <div class="reg-list" id="proyectos-list">
+      <div class="loading">Cargando proyectos…</div>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  const SUPABASE_URL = "https://aljgksevggwtfndqxoiy.supabase.co";
+  const SUPABASE_KEY = "sb_publishable_IEGX-ej9_w-tksybzT2Vfw_riE98P7m";
+  const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  let session = { operario: null, proyectoActivo: null };
+  let operariosCache = [];
+  let proyectosCache = [];
+
+  function goTo(id){
+    document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+  }
+
+  function showToast(msg){
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(()=>t.classList.remove('show'), 2200);
+  }
+
+  function initials(nombre){
+    return nombre.split(/[\s,]+/).filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase();
+  }
+
+  async function cargarOperarios(){
+    const grid = document.getElementById('operarios-grid');
+    const { data, error } = await sb
+      .from('lm_operarios')
+      .select('id, nombre_completo, rol, segmento, email')
+      .eq('activo', true)
+      .order('nombre_completo');
+
+    if (error){
+      grid.innerHTML = `<div class="empty-note">Error cargando operarios:<br>${error.message}</div>`;
+      return;
+    }
+    if (!data || data.length === 0){
+      grid.innerHTML = `<div class="empty-note">No hay operarios activos cargados todavía en lm_operarios.</div>`;
+      return;
+    }
+    operariosCache = data;
+    grid.innerHTML = data.map(op => `
+      <div class="who-card ${op.segmento === 'campo' ? '' : 'sky'}" onclick="elegirOperario('${op.id}')">
+        <div class="who-avatar">${initials(op.nombre_completo)}</div>
+        <div class="who-name">${op.nombre_completo}</div>
+        <div class="who-role">${op.rol}</div>
+      </div>
+    `).join('');
+  }
+
+  function elegirOperario(id){
+    const op = operariosCache.find(o => o.id === id);
+    session.operario = op;
+    document.getElementById('pin-avatar').textContent = initials(op.nombre_completo);
+    document.getElementById('pin-name').textContent = op.nombre_completo;
+    document.getElementById('pin-error').textContent = "";
+    document.getElementById('password-input').value = "";
+    goTo('login-pin');
+    setTimeout(() => document.getElementById('password-input').focus(), 100);
+  }
+
+  async function verificarPin(){
+    const password = document.getElementById('password-input').value;
+    if (!password){
+      document.getElementById('pin-error').textContent = "Ingresá tu contraseña";
+      return;
+    }
+    if (!session.operario.email){
+      document.getElementById('pin-error').textContent = "Este operario no tiene email cargado en lm_operarios";
+      return;
+    }
+    document.getElementById('pin-error').textContent = "Verificando…";
+
+    const { data, error } = await sb.auth.signInWithPassword({
+      email: session.operario.email,
+      password: password
+    });
+
+    if (error){
+      document.getElementById('pin-error').textContent = "Email o contraseña incorrectos";
+      return;
+    }
+    document.getElementById('pin-error').textContent = "";
+    irAHome();
+  }
+
+  const ICONS = {
+    trackeo:  '<path d="M12 2C8 2 5 5 5 9c0 5.5 7 13 7 13s7-7.5 7-13c0-4-3-7-7-7z"/><circle cx="12" cy="9" r="2.3"/>',
+    siembra:  '<path d="M12 21V10M12 10c0-4 3-6 7-6-1 4-3 7-7 6zM12 14c0-3-2.5-5-6-5 1 3 3 5 6 5z"/>',
+    floracion:'<circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M3 12h2M19 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/>',
+    aplic:    '<path d="M9 2h6M10 2v6l-5 10a2 2 0 0 0 2 3h10a2 2 0 0 0 2-3l-5-10V2"/>',
+    humedad:  '<path d="M12 2s6 7 6 12a6 6 0 0 1-12 0c0-5 6-12 6-12z"/>',
+    cosecha:  '<ellipse cx="12" cy="12" rx="5" ry="9"/><path d="M7 8h10M7 12h10M7 16h10M12 3v18"/>',
+    descarte: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>',
+    obs:      '<path d="M4 20l4-1 10-10-3-3L5 16l-1 4z"/>',
+    lluvia:   '<path d="M6 15a4 4 0 1 1 1.3-7.8A5 5 0 0 1 17 9a3.5 3.5 0 0 1-.5 7H6z"/><path d="M8 19l-1 2M12 19l-1 2M16 19l-1 2"/>',
+    secado:   '<path d="M8.5 2c1 3-3 3.5-3 7a6.5 6.5 0 0 0 13 0c0-2-1-3-2-4 .3 2-1 3-2 2.5C15 6 14 4 13 2c-.5 3-2 3.5-2 6-1.5-1-2.8-3-2.5-6z"/>',
+    espigas:  '<ellipse cx="12" cy="12" rx="5" ry="9"/><path d="M7 8h10M7 12h10M7 16h10M12 3v18"/>',
+    peso:     '<path d="M12 3v18M6 7h12M6 7l-3 6a3 3 0 0 0 6 0l-3-6zM18 7l-3 6a3 3 0 0 0 6 0l-3-6z"/>',
+    limpieza: '<path d="M4 4l8 8M12 4l8 16M4 20l4-8"/>',
+    embolse:  '<path d="M3 8l9-5 9 5-9 5-9-5zM3 8v8l9 5 9-5V8M12 13v8"/>',
+    transf:   '<path d="M2 17h13V7H2v10zM15 11h4l3 3v3h-7v-6zM6 20a2 2 0 1 0 0-.1M17 20a2 2 0 1 0 0-.1"/>',
+    calidad:  '<path d="M9 2v6L5 18a3 3 0 0 0 3 4h8a3 3 0 0 0 3-4l-4-10V2M9 2h6M7 15h10"/>',
+    recesp:   '<path d="M12 2v6M12 2l-3 3M12 2l3 3M12 22a9 9 0 1 1 0-18"/>',
+    recfeno:  '<path d="M4 12a8 8 0 1 1 16 0 8 8 0 0 1-16 0z"/><path d="M12 8v4l3 2"/>',
+    validfeno:'<path d="M20 6L9 17l-5-5"/>',
+  };
+
+  // key -> { kind:'repeatable'|'single'|'special', ref }
+  const TASKS_CAMPO = [
+    ['Trackeo','trackeo'], ['Siembra','siembra'], ['Floración','floracion'], ['Aplicaciones','aplic'],
+    ['Recuentos especiales','recesp'], ['Recuentos de fenología','recfeno'], ['Validación fenotípica','validfeno'],
+    ['Humedad','humedad'], ['Cosecha','cosecha'], ['Descarte','descarte'], ['Observación','obs'], ['Lluvia/Riego','lluvia']
+  ];
+  const TASKS_PLANTA = [
+    ['Secado','secado'], ['Recuento espigas','espigas'], ['Peso seco','peso'], ['Limpieza/Proceso','limpieza'],
+    ['Embolse','embolse'], ['Transferencia','transf'], ['Calidad','calidad']
+  ];
+
+  // Mapa de tareas ya conectadas de verdad, contra su spec real.
+  // 'trackeo' queda afuera a propósito: necesita mapa/GPS, se arma aparte.
+  const REAL_FORMS = {
+    humedad:    { kind:'repeatable', spec:'humedad' },
+    secado:     { kind:'repeatable', spec:'secado' },
+    descarte:   { kind:'repeatable', spec:'descarte' },
+    lluvia:     { kind:'repeatable', spec:'lluvia' },
+    obs:        { kind:'repeatable', spec:'observacion' },
+    recfeno:    { kind:'repeatable', spec:'recfeno' },
+    validfeno:  { kind:'repeatable', spec:'validfeno' },
+    espigas:    { kind:'repeatable', spec:'recespigas' },
+    peso:       { kind:'repeatable', spec:'pesoseco' },
+    transf:     { kind:'repeatable', spec:'transferencia' },
+    calidad:    { kind:'repeatable', spec:'calidad' },
+    siembra:    { kind:'single', spec:'siembra' },
+    floracion:  { kind:'single', spec:'floracion' },
+    cosecha:    { kind:'single', spec:'cosecha' },
+    recesp:     { kind:'single', spec:'recesp_especial' },
+    limpieza:   { kind:'single', spec:'planta_limpieza' },
+    embolse:    { kind:'single', spec:'planta_embolse' },
+    aplic:      { kind:'special', fn:'abrirAplicacionesMenu' },
+    trackeo:    { kind:'special', fn:'abrirTrackeo' },
+  };
+
+  function taskGridHtml(tasks, skyClass){
+    return `<div class="task-grid">` + tasks.map(([name, key]) => {
+      const f = REAL_FORMS[key];
+      let action;
+      if (!f) action = `showToast('${name}: se arma en otra etapa (necesita mapa/GPS)')`;
+      else if (f.kind === 'repeatable') action = `abrirFormularioReal('repeatable','${f.spec}')`;
+      else if (f.kind === 'single') action = `abrirFormularioReal('single','${f.spec}')`;
+      else action = `${f.fn}()`;
+      return `
+      <div class="task-card ${skyClass}" onclick="${action}">
+        <div class="task-icon"><svg viewBox="0 0 24 24">${ICONS[key]}</svg></div>
+        <div class="task-name">${name}</div>
+      </div>
+    `;
+    }).join('') + `</div>`;
+  }
+
+  function abrirFormularioReal(kind, specKey){
+    if (kind === 'repeatable') abrirGenericList(specKey);
+    else abrirGenericSingle(specKey);
+  }
+
+  function irAHome(){
+    const op = session.operario;
+    document.getElementById('home-name').textContent = op.nombre_completo;
+
+    const top = document.getElementById('home-top');
+    const body = document.getElementById('home-body');
+    top.className = 'home-top ' + (op.segmento || 'campo');
+
+    let html = '';
+    if (op.segmento === 'campo' || op.segmento === 'ambos'){
+      html += `<div class="segment-label">Campo</div>` + taskGridHtml(TASKS_CAMPO, '');
+    }
+    if (op.segmento === 'planta' || op.segmento === 'ambos'){
+      html += `<div class="segment-label">Planta</div>` + taskGridHtml(TASKS_PLANTA, 'sky');
+    }
+    body.innerHTML = html || `<div class="empty-note" style="color:var(--soil-500);">Este operario no tiene segmento asignado.</div>`;
+
+    goTo('home');
+  }
+
+  function logout(){
+    session = { operario: null, proyectoActivo: null };
+    document.getElementById('active-project-label').textContent = 'Elegir proyecto';
+    goTo('login-who');
+  }
+
+  async function cargarProyectos(){
+    const list = document.getElementById('proyectos-list');
+    list.innerHTML = `<div class="loading">Cargando proyectos…</div>`;
+
+    const { data: campanaActiva, error: errCamp } = await sb
+      .from('lm_campanas')
+      .select('codigo, nombre')
+      .eq('activa_para_carga', true)
+      .maybeSingle();
+
+    if (errCamp || !campanaActiva){
+      list.innerHTML = `<div class="empty-list">No hay ninguna campaña marcada como activa en lm_campanas todavía.</div>`;
+      return;
+    }
+
+    const { data, error } = await sb
+      .from('lm_proyectos')
+      .select('id, proyecto, nombre_linea, status, categoria')
+      .eq('campana', campanaActiva.codigo)
+      .order('proyecto');
+
+    if (error){
+      list.innerHTML = `<div class="empty-list">Error: ${error.message}</div>`;
+      return;
+    }
+    proyectosCache = data || [];
+    renderProyectos(proyectosCache);
+  }
+
+  function statusClass(status){
+    if (status === 'Sembrado') return 'status-sembrado';
+    if (status === 'Cosechado') return 'status-cosechado';
+    return 'status-sinsembrar';
+  }
+
+  function renderProyectos(list){
+    const wrap = document.getElementById('proyectos-list');
+    if (list.length === 0){
+      wrap.innerHTML = `<div class="empty-list">Sin proyectos para la campaña activa.</div>`;
+      return;
+    }
+    wrap.innerHTML = list.map(p => `
+      <div class="reg-item" onclick="elegirProyecto('${p.id}')">
+        <div class="reg-info">
+          <div class="rtitle">${p.proyecto} · ${p.nombre_linea || 's/línea'}</div>
+          <div class="rsub"><span class="status-pill ${statusClass(p.status)}">${p.status || '—'}</span></div>
+        </div>
+        <div class="reg-chev">›</div>
+      </div>
+    `).join('');
+  }
+
+  function filterProyectos(){
+    const q = document.getElementById('proyecto-search').value.trim().toLowerCase();
+    if (!q){ renderProyectos(proyectosCache); return; }
+    renderProyectos(proyectosCache.filter(p =>
+      (p.proyecto || '').toLowerCase().includes(q) ||
+      (p.nombre_linea || '').toLowerCase().includes(q)
+    ));
+  }
+
+  function elegirProyecto(id){
+    const p = proyectosCache.find(x => x.id === id);
+    session.proyectoActivo = p;
+    document.getElementById('active-project-label').textContent = `${p.proyecto} · ${p.nombre_linea || ''}`;
+    goTo('home');
+  }
+
+  function abrirSelectorProyecto(){
+    goTo('seleccionar-proyecto');
+    cargarProyectos();
+  }
+
+  // ======== CONTROL DE HUMEDAD (primer formulario real) ========
+  // ============================================================
+  // MOTOR GENÉRICO — cada formulario es una "spec" declarativa,
+  // auditada campo por campo contra el schema real de Supabase.
+  // Tipos de campo soportados:
+  //   text, number, date, time, boolean-pill, select-fixed, matid-select
+  // ============================================================
+
+  function pintarLote(prefix){
+    const p = session.proyectoActivo;
+    document.getElementById(prefix + '-lot-title').textContent = p.proyecto;
+    document.getElementById(prefix + '-lot-sub').textContent = (p.nombre_linea || '') + (p.status ? ' · ' + p.status : '');
+  }
+
+  function fechaLegible(iso){
+    if (!iso) return '—';
+    const [y,m,d] = iso.split('-');
+    return `${d}/${m}/${y}`;
+  }
+
+  function hoy(){ return new Date().toISOString().slice(0,10); }
+
+  // ---- specs de formularios REPETIBLES (lista + "+ Nuevo") ----
+  const REPEATABLE_SPECS = {
+    humedad: {
+      title: 'Control de Humedad', table: 'lm_control_humedad', color: 'green',
+      orderBy: 'fecha',
+      rowText: r => ({ title: (r.humedad != null ? r.humedad + '%' : '—'), sub: fechaLegible(r.fecha) }),
+      fields: [
+        { key:'fecha', label:'Fecha', type:'date', required:true, default:hoy },
+        { key:'humedad', label:'Humedad (%)', type:'number', required:true },
+      ],
+      fixed: { responsable_id: () => session.operario.id }
+    },
+    secado: {
+      title: 'Seguimiento de secado', table: 'lm_seguimiento_secado', color: 'sky',
+      orderBy: 'fecha',
+      rowText: r => ({ title: `Cubo ${r.n_cubo_secadora || '—'} · H ${r.humedad ?? '—'}% · T ${r.temperatura ?? '—'}°C`, sub: fechaLegible(r.fecha) + (r.fin_secado ? ' · Fin de secado' : '') }),
+      fields: [
+        { key:'n_cubo_secadora', label:'N° de cubo secadora', type:'text' },
+        { key:'humedad', label:'Humedad (%)', type:'number' },
+        { key:'temperatura', label:'Temperatura (°C)', type:'number' },
+        { key:'fecha', label:'Fecha', type:'date', required:true, default:hoy },
+        { key:'fin_secado', label:'¿Fin de secado?', type:'boolean-pill', default:false },
+      ],
+      fixed: { responsable_id: () => session.operario.id }
+    },
+    descarte: {
+      title: 'Descarte de Familia', table: 'lm_descartes_familia', color: 'green',
+      orderBy: 'fecha',
+      rowText: r => ({ title: r.matid_descarte, sub: (r.motivo || '—') + ' · ' + fechaLegible(r.fecha) }),
+      fields: [
+        { key:'matid_descarte', label:'MATID descarte', type:'matid-select', required:true },
+        { key:'motivo', label:'Motivo', type:'select-fixed', required:true,
+          options:['FT','FAMILIA DESUNIFORME','APLICACION','FENOTIPICO','DESCARTE LP SNP','DESCARTE LP ZYGO','DESCARTE LP SQC','RECOMENDACION BREEDER','BAJA POBLACION'] },
+        { key:'fecha', label:'Fecha', type:'date', required:true, default:hoy },
+        { key:'comentario', label:'Comentario', type:'text' },
+        { key:'foto_url', label:'Foto', type:'photo' },
+      ],
+      fixed: { operario_id: () => session.operario.id }
+    },
+    lluvia: {
+      title: 'Lluvias / Riego', table: 'lm_lluvias_riego', color: 'green',
+      orderBy: 'fecha_evento',
+      rowText: r => ({ title: (r.tipo_evento || '—') + (r.mm != null ? ' · ' + r.mm + ' mm' : ''), sub: fechaLegible(r.fecha_evento) }),
+      fields: [
+        { key:'tipo_evento', label:'Tipo de evento', type:'select-fixed', required:true, options:['Lluvia','Riego'] },
+        { key:'mm', label:'Milímetros (mm)', type:'number' },
+        { key:'fecha_evento', label:'Fecha', type:'date', required:true, default:hoy },
+      ],
+      fixed: { responsable_id: () => session.operario.id }
+    },
+    observacion: {
+      title: 'Observación de Campo', table: 'lm_observaciones_campo', color: 'green',
+      orderBy: 'fecha',
+      rowText: r => ({ title: (r.comentario || 'Sin comentario').slice(0,40), sub: fechaLegible(r.fecha) }),
+      fields: [
+        { key:'fecha', label:'Fecha', type:'date', required:true, default:hoy },
+        { key:'comentario', label:'Comentario', type:'text' },
+        { key:'foto_url', label:'Foto', type:'photo' },
+      ],
+      fixed: { operario_id: () => session.operario.id }
+    },
+    recfeno: {
+      title: 'Recuentos de fenología', table: 'lm_recuentos_fenologia', color: 'green',
+      orderBy: 'fecha',
+      rowText: r => ({ title: r.matid || '—', sub: `V2V3 ${r.v2v3 ?? 0} · Pre-flor ${r.pre_floracion ?? 0} · Polin. ${r.plantas_polinizadas ?? 0}` }),
+      fields: [
+        { key:'matid', label:'MATID', type:'matid-select', required:true },
+        { key:'fecha', label:'Fecha', type:'date', required:true, default:hoy },
+        { key:'v2v3', label:'V2V3', type:'number', default:0 },
+        { key:'pre_floracion', label:'Pre floración', type:'number', default:0 },
+        { key:'plantas_polinizadas', label:'Plantas Polinizadas', type:'number', default:0 },
+      ],
+      fixed: { operario_id: () => session.operario.id }
+    },
+    validfeno: {
+      title: 'Validación fenotípica', table: 'lm_validacion_fenotipica', color: 'green',
+      orderBy: 'created_at',
+      rowText: r => ({ title: r.caracterizacion_fenotipica || '—', sub: (r.caracteristica || r.detalle || '—') }),
+      fields: [
+        { key:'caracterizacion_fenotipica', label:'Caracterización fenotípica', type:'select-fixed', required:true,
+          options:['Panoja','Hoja','Espiga','Cariopse','GDU'] },
+        { key:'caracteristica', label:'Característica', type:'text' },
+        { key:'ide', label:'Ide', type:'text' },
+        { key:'detalle', label:'Detalle', type:'text' },
+        { key:'confirma', label:'Confirma', type:'boolean-pill', default:true },
+        { key:'comentario', label:'Comentario', type:'text' },
+      ],
+      fixed: {}
+    },
+    proteccion: {
+      title: 'Protección de Cultivos', table: 'lm_aplicaciones_libres', color: 'green',
+      orderBy: 'fecha',
+      rowText: r => ({ title: (r.tipo || '—') + ' · ' + (r.producto || '—'), sub: fechaLegible(r.fecha) + (r.dosis != null ? ' · ' + r.dosis : '') }),
+      fields: [
+        { key:'tipo', label:'Tipo', type:'select-fixed', options:['Herbicida','Insecticida','Fungicida'] },
+        { key:'producto', label:'Producto', type:'text', required:true },
+        { key:'dosis', label:'Dosis', type:'number' },
+        { key:'metodo_aplicacion', label:'Método de aplicación', type:'select-fixed', options:['Terrestre','Aérea'] },
+        { key:'fecha', label:'Fecha', type:'date', required:true, default:hoy },
+        { key:'comentario', label:'Comentario', type:'text' },
+        { key:'foto_url', label:'Foto', type:'photo' },
+      ],
+      fixed: { operario_id: () => session.operario.id }
+    },
+    lecturaprotocolo: {
+      title: 'Lectura aplicación de Protocolo', table: 'lm_lecturas_protocolo', color: 'green',
+      orderBy: 'fecha',
+      rowText: r => ({ title: r.matid || '—', sub: `Escala ${r.escala ?? '—'} · ${fechaLegible(r.fecha)}` }),
+      fields: [
+        { key:'matid', label:'MATID', type:'matid-select', required:true },
+        { key:'fecha', label:'Fecha', type:'date', required:true, default:hoy },
+        { key:'descripcion', label:'Descripción', type:'text' },
+        { key:'escala', label:'Escala de fitotoxicidad (0-5)', type:'select-fixed', required:true, options:['0','1','2','3','4','5'] },
+        { key:'comentario', label:'Comentario', type:'text' },
+        { key:'foto_url', label:'Foto', type:'photo' },
+      ],
+      fixed: { responsable_id: () => session.operario.id }
+    },
+    recespigas: {
+      title: 'Recuento de Espigas', table: 'lm_recuento_espigas', color: 'sky',
+      orderBy: 'fecha',
+      rowText: r => ({ title: r.matid_cosecha || '—', sub: `${r.n_espigas_ok ?? 0} ok · ${r.n_espigas_descarte ?? 0} descarte` }),
+      fields: [
+        { key:'matid_cosecha', label:'MATID Cosecha', type:'matid-select', required:true },
+        { key:'matid_siembra', label:'MATID Siembra', type:'matid-select' },
+        { key:'fecha', label:'Fecha', type:'date', required:true, default:hoy },
+        { key:'n_espigas_ok', label:'N° espigas ok', type:'number', default:0 },
+        { key:'n_espigas_descarte', label:'N° espigas descarte', type:'number', default:0 },
+        { key:'eliminar', label:'Eliminar', type:'boolean-pill', default:false },
+        { key:'comentario', label:'Comentario', type:'text' },
+        { key:'foto_url', label:'Foto', type:'photo' },
+      ],
+      fixed: { responsable_id: () => session.operario.id }
+    },
+    pesoseco: {
+      title: 'Peso Seco', table: 'lm_peso_seco', color: 'sky',
+      orderBy: 'fecha',
+      rowText: r => ({ title: r.matid_cosecha || '—', sub: `P.mil ${r.peso_mil_semillas_gr ?? '—'}g · ${r.peso_seco_kg ?? '—'} kg` }),
+      fields: [
+        { key:'matid_cosecha', label:'MATID Cosecha', type:'matid-select', required:true },
+        { key:'matid_siembra', label:'MATID Siembra', type:'matid-select' },
+        { key:'fecha', label:'Fecha', type:'date', required:true, default:hoy },
+        { key:'peso_mil_semillas_gr', label:'Peso de mil semillas (gr)', type:'number' },
+        { key:'peso_seco_kg', label:'Peso seco (Kg)', type:'number' },
+        { key:'comentario', label:'Comentario', type:'text' },
+      ],
+      fixed: { responsable_id: () => session.operario.id }
+    },
+    transferencia: {
+      title: 'Transferencia de semillas', table: 'lm_transferencia_semillas', color: 'sky',
+      orderBy: 'fecha_enviado',
+      rowText: r => ({ title: (r.destino || '—') + ' · ' + (r.cantidad_kg ?? 0) + ' kg', sub: fechaLegible(r.fecha_enviado) }),
+      fields: [
+        { key:'destino', label:'Destino', type:'select-fixed', required:true, options:['R&D','PBS','SPR','TRI','BAS','Laboratorio','Otro'] },
+        { key:'cantidad_kg', label:'Cantidad (kg)', type:'number', required:true },
+        { key:'kg_avanza', label:'Kg avanza', type:'number' },
+        { key:'kg_descarte', label:'Kg descarte', type:'number' },
+        { key:'status_calidad', label:'Status de calidad', type:'text' },
+        { key:'n_simulated', label:'N° de simulated', type:'text' },
+        { key:'fecha_preparado', label:'Fecha preparado', type:'date', default:hoy },
+        { key:'fecha_enviado', label:'Fecha de enviado', type:'date', required:true, default:hoy },
+        { key:'comentario', label:'Comentario', type:'text' },
+      ],
+      fixed: { responsable_id: () => session.operario.id }
+    },
+    calidad: {
+      title: 'Resultados de calidad', table: 'lm_resultados_calidad', color: 'sky',
+      orderBy: 'fecha',
+      rowText: r => ({ title: (r.il || '—') + ' · ' + (r.decision || '—'), sub: `SNP ${r.snp || '—'} · ${fechaLegible(r.fecha)}` }),
+      fields: [
+        { key:'il', label:'IL', type:'text', required:true },
+        { key:'fecha', label:'Fecha', type:'date', required:true, default:hoy },
+        { key:'snp', label:'SNP', type:'text' },
+        { key:'zygo', label:'Zygo', type:'text' },
+        { key:'sqc', label:'SQC', type:'text' },
+        { key:'pg', label:'PG', type:'text' },
+        { key:'vigor', label:'Vigor', type:'text' },
+        { key:'bioensayo', label:'Bioensayo', type:'text' },
+        { key:'decision', label:'Decisión', type:'select-fixed', options:['Avanza','Descarte'] },
+        { key:'comentario', label:'Comentario', type:'text' },
+      ],
+      fixed: { responsable_id: () => session.operario.id }
+    },
+  };
+
+  // ---- specs de formularios de REGISTRO ÚNICO por proyecto ----
+  const SINGLE_SPECS = {
+    siembra: {
+      title: 'Siembra', table: 'lm_siembra', color: 'green',
+      fields: [
+        { key:'status', label:'Status', type:'select-fixed', options:['Sin Sembrar','Sembrado'], default:'Sin Sembrar' },
+        { key:'fecha_siembra', label:'Fecha de siembra', type:'date' },
+        { key:'distancia_surcos', label:'Distancia surcos', type:'number' },
+        { key:'largo_surcos', label:'Largo surcos', type:'number' },
+        { key:'cant_surcos', label:'Cant surcos', type:'number' },
+        { key:'riego', label:'Riego', type:'boolean-pill', default:false },
+      ],
+      fixed: { operario_id: () => session.operario.id }
+    },
+    floracion: {
+      title: 'Floración', table: 'lm_floracion', color: 'green',
+      fields: [
+        { key:'inicio', label:'Inicio', type:'date' },
+        { key:'floracion_50', label:'Floración 50%', type:'date' },
+        { key:'fin_floracion', label:'Fin de floración', type:'date' },
+      ],
+      fixed: { responsable_id: () => session.operario.id }
+    },
+    cosecha: {
+      title: 'Cosecha', table: 'lm_cosecha', color: 'green',
+      fields: [
+        { key:'status', label:'Status', type:'select-fixed', options:['Cosechado','No Cosechado'] },
+        { key:'fecha', label:'Fecha', type:'date' },
+        { key:'ingreso_matid_cosecha', label:'Ingreso Matid Cosecha', type:'boolean-pill', default:false },
+      ],
+      fixed: {}
+    },
+    recesp_especial: {
+      title: 'Recuentos especiales', table: 'lm_recuentos_especiales', color: 'green',
+      fields: [
+        { key:'desea_recuento', label:'¿Desea realizar un recuento especial?', type:'boolean-pill', default:false },
+        { key:'motivo', label:'Motivo de recuento', type:'text' },
+        { key:'cantidad_muy_afectadas', label:'Cantidad de plantas muy afectadas', type:'number', default:0 },
+        { key:'cantidad_medianamente_afectadas', label:'Cantidad de plantas medianamente afectadas', type:'number', default:0 },
+        { key:'cantidad_poco_afectadas', label:'Cantidad de plantas poco afectadas', type:'number', default:0 },
+        { key:'foto_url', label:'Foto', type:'photo' },
+      ],
+      fixed: {}
+    },
+    planta_limpieza: {
+      title: 'Limpieza / Proceso', table: 'lm_planta_proceso', color: 'sky',
+      fields: [
+        { key:'fin_desgranado', label:'Fin de desgranado', type:'boolean-pill', default:false },
+        { key:'fecha_cosecha', label:'Fecha de cosecha', type:'date' },
+        { key:'bolsas_visual', label:'Bolsas — Inspecc. visual', type:'boolean-pill', default:false },
+        { key:'fecha_recepcion', label:'Fecha de recepción', type:'date' },
+        { key:'cinta_visual', label:'Cinta — Inspecc. visual', type:'boolean-pill', default:false },
+        { key:'cinta_aire', label:'Cinta — Limpieza aire', type:'boolean-pill', default:false },
+        { key:'fecha_secado', label:'Fecha de secado', type:'date' },
+        { key:'cubos_visual', label:'Cubos — Inspecc. visual', type:'boolean-pill', default:false },
+        { key:'fecha_desgrane', label:'Fecha de desgrane', type:'date' },
+        { key:'desgranadora_visual', label:'Desgranadora — Inspecc. visual', type:'boolean-pill', default:false },
+        { key:'desgranadora_aire', label:'Desgranadora — Limpieza aire', type:'boolean-pill', default:false },
+        { key:'pre_limpieza_visual', label:'Pre limpieza — Inspecc. visual', type:'boolean-pill', default:false },
+        { key:'pre_limpieza_aire', label:'Pre limpieza — Limpieza aire', type:'boolean-pill', default:false },
+        { key:'bandejas_visual', label:'Bandejas — Inspecc. visual', type:'boolean-pill', default:false },
+        { key:'bolsa_desgrane_visual', label:'Bolsa de desgrane — Inspecc. visual', type:'boolean-pill', default:false },
+        { key:'fecha_muestreo_mesa', label:'Fecha muestreo (mesa)', type:'date' },
+        { key:'mesa_visual', label:'Mesa — Inspecc. visual', type:'boolean-pill', default:false },
+        { key:'muestreado', label:'¿Proyecto fue muestreado?', type:'boolean-pill', default:false },
+      ],
+      fixed: { responsable_id: () => session.operario.id }
+    },
+    planta_embolse: {
+      title: 'Embolse', table: 'lm_planta_proceso', color: 'sky',
+      fields: [
+        { key:'fecha_embolse', label:'Fecha de embolse', type:'date' },
+        { key:'envases_embolse', label:'Envases', type:'text' },
+      ],
+      fixed: { responsable_id: () => session.operario.id }
+    },
+  };
+
+  let genericState = { specKey:null, kind:null, matidOptions:[] };
+
+  async function cargarMatidOptions(){
+    const { data } = await sb
+      .from('lm_familias_planificadas')
+      .select('matid')
+      .eq('proyecto_id', session.proyectoActivo.id)
+      .order('matid');
+    const seen = new Set();
+    genericState.matidOptions = (data || []).filter(r => {
+      if (!r.matid || seen.has(r.matid)) return false;
+      seen.add(r.matid); return true;
+    }).map(r => r.matid);
+  }
+
+  // archivos de foto elegidos, pendientes de subir (se suben recién al Guardar)
+  let fotosSeleccionadas = {};
+
+  function fieldHtml(f, prefix){
+    const id = `${prefix}-${f.key}`;
+    if (f.type === 'text') return `<div><div class="field-label">${f.label}</div><input type="text" class="field-input" id="${id}"></div>`;
+    if (f.type === 'number') return `<div><div class="field-label">${f.label}</div><input type="number" step="0.01" class="field-input" id="${id}" placeholder="0"></div>`;
+    if (f.type === 'date') return `<div><div class="field-label">${f.label}</div><input type="date" class="field-input" id="${id}"></div>`;
+    if (f.type === 'time') return `<div><div class="field-label">${f.label}</div><input type="time" class="field-input" id="${id}"></div>`;
+    if (f.type === 'boolean-pill') return `<div><div class="field-label">${f.label}</div><div class="pill-group">
+        <div class="pill" id="${id}-si" onclick="setBoolPill('${id}',true)"><div class="ring"></div>Sí</div>
+        <div class="pill" id="${id}-no" onclick="setBoolPill('${id}',false)"><div class="ring"></div>No</div>
+      </div><input type="hidden" id="${id}"></div>`;
+    if (f.type === 'select-fixed') return `<div><div class="field-label">${f.label}</div><select class="field-input" id="${id}">
+        <option value="">-Seleccione-</option>${f.options.map(o=>`<option value="${o}">${o}</option>`).join('')}
+      </select></div>`;
+    if (f.type === 'matid-select') return `<div><div class="field-label">${f.label}</div><select class="field-input" id="${id}">
+        <option value="">-Seleccione-</option>${genericState.matidOptions.map(m=>`<option value="${m}">${m}</option>`).join('')}
+      </select></div>`;
+    if (f.type === 'photo') return `<div>
+        <div class="field-label">${f.label}</div>
+        <input type="file" accept="image/*" capture="environment" id="${id}-file" style="display:none;" onchange="onFotoElegida('${id}')">
+        <div class="photo-add" onclick="document.getElementById('${id}-file').click()">📷 Tocar para sacar/elegir foto</div>
+        <img class="photo-preview" id="${id}-preview">
+        <div class="photo-status" id="${id}-status"></div>
+      </div>`;
+    return '';
+  }
+
+  function onFotoElegida(id){
+    const input = document.getElementById(id + '-file');
+    const file = input.files[0];
+    if (!file) return;
+    fotosSeleccionadas[id] = file;
+    const preview = document.getElementById(id + '-preview');
+    preview.src = URL.createObjectURL(file);
+    preview.style.display = 'block';
+    document.getElementById(id + '-status').textContent = file.name;
+  }
+
+  async function subirFotosPendientes(prefix, fields){
+    const urls = {};
+    for (const f of fields){
+      if (f.type !== 'photo') continue;
+      const id = `${prefix}-${f.key}`;
+      const file = fotosSeleccionadas[id];
+      if (!file) continue;
+      const statusBox = document.getElementById(id + '-status');
+      if (statusBox) statusBox.textContent = 'Subiendo...';
+      const path = `${session.operario.id}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g,'_')}`;
+      const { error } = await sb.storage.from('lm-fotos').upload(path, file);
+      if (error){
+        if (statusBox) statusBox.textContent = 'Error al subir: ' + error.message;
+        throw error;
+      }
+      const { data } = sb.storage.from('lm-fotos').getPublicUrl(path);
+      urls[f.key] = data.publicUrl;
+      if (statusBox) statusBox.textContent = 'Subida ✓';
+      delete fotosSeleccionadas[id];
+    }
+    return urls;
+  }
+
+  function setBoolPill(id, val){
+    document.getElementById(id).value = val ? 'true' : 'false';
+    document.getElementById(id + '-si').classList.toggle('selected', val === true);
+    document.getElementById(id + '-no').classList.toggle('selected', val === false);
+  }
+
+  function fillDefaults(fields, prefix){
+    for (const f of fields){
+      const id = `${prefix}-${f.key}`;
+      const el = document.getElementById(id);
+      const def = typeof f.default === 'function' ? f.default() : f.default;
+      if (f.type === 'boolean-pill'){
+        setBoolPill(id, def === undefined ? false : def);
+      } else if (el && def !== undefined){
+        el.value = def;
+      }
+    }
+  }
+
+  function fillValues(fields, prefix, row){
+    for (const f of fields){
+      const id = `${prefix}-${f.key}`;
+      const val = row[f.key];
+      if (f.type === 'boolean-pill'){
+        setBoolPill(id, !!val);
+      } else {
+        const el = document.getElementById(id);
+        if (el && val !== null && val !== undefined) el.value = val;
+      }
+    }
+  }
+
+  function collectValues(fields, prefix, errBoxId){
+    const obj = {};
+    for (const f of fields){
+      if (f.type === 'photo') continue; // se maneja aparte, con subirFotosPendientes()
+      const id = `${prefix}-${f.key}`;
+      const el = document.getElementById(id);
+      if (!el) continue;
+      let val = el.value;
+      if (f.type === 'number') val = val === '' ? null : parseFloat(val);
+      else if (f.type === 'boolean-pill') val = val === '' ? null : (val === 'true');
+      else val = val === '' ? null : val;
+      if (f.required && (val === null || val === undefined)){
+        document.getElementById(errBoxId).textContent = `Falta completar: ${f.label}`;
+        return null;
+      }
+      obj[f.key] = val;
+    }
+    return obj;
+  }
+
+  // ---- repetibles: lista ----
+  async function abrirGenericList(specKey){
+    if (!session.proyectoActivo){
+      showToast('Primero elegí un proyecto activo');
+      abrirSelectorProyecto();
+      return;
+    }
+    genericState.specKey = specKey;
+    genericState.kind = 'repeatable';
+    const spec = REPEATABLE_SPECS[specKey];
+
+    document.getElementById('generic-list-title').textContent = spec.title;
+    document.getElementById('generic-list-header').className = 'form-header' + (spec.color === 'sky' ? ' sky' : '');
+    document.getElementById('generic-list-fab').className = 'fab-add' + (spec.color === 'sky' ? ' sky' : '');
+    document.getElementById('generic-list-dot').style.background = spec.color === 'sky' ? 'var(--sky-500)' : '';
+    pintarLote('generic-list');
+
+    const list = document.getElementById('generic-list-items');
+    list.innerHTML = `<div class="loading">Cargando…</div>`;
+    goTo('generic-list');
+
+    const { data, error } = await sb
+      .from(spec.table)
+      .select('*')
+      .eq('proyecto_id', session.proyectoActivo.id)
+      .order(spec.orderBy, { ascending: false });
+
+    if (error){
+      list.innerHTML = `<div class="empty-list">Error: ${error.message}</div>`;
+      return;
+    }
+    if (!data || data.length === 0){
+      list.innerHTML = `<div class="empty-list">Todavía no hay registros para este proyecto.</div>`;
+      return;
+    }
+    list.innerHTML = data.map((r, i) => {
+      const t = spec.rowText(r);
+      return `<div class="reg-item" style="${spec.color==='sky' ? 'border-left-color:var(--sky-500);' : ''}">
+        <div class="reg-num">${data.length - i}</div>
+        <div class="reg-info"><div class="rtitle">${t.title}</div><div class="rsub">${t.sub}</div></div>
+      </div>`;
+    }).join('');
+  }
+
+  async function abrirGenericNew(){
+    const spec = REPEATABLE_SPECS[genericState.specKey];
+    document.getElementById('generic-new-title').textContent = spec.title;
+    document.getElementById('generic-new-header').className = 'form-header' + (spec.color === 'sky' ? ' sky' : '');
+    document.getElementById('generic-new-save').className = 'btn-save' + (spec.color === 'sky' ? ' sky' : '');
+    document.getElementById('generic-new-dot').style.background = spec.color === 'sky' ? 'var(--sky-500)' : '';
+    document.getElementById('generic-new-back').setAttribute('onclick', `goTo('generic-list')`);
+    document.getElementById('generic-new-error').textContent = '';
+    pintarLote('generic-new');
+
+    if (spec.fields.some(f => f.type === 'matid-select')) await cargarMatidOptions();
+
+    document.getElementById('generic-new-fields').innerHTML = spec.fields.map(f => fieldHtml(f, 'gn')).join('');
+    fillDefaults(spec.fields, 'gn');
+    goTo('generic-new');
+  }
+
+  async function guardarGenericNew(){
+    const spec = REPEATABLE_SPECS[genericState.specKey];
+    const values = collectValues(spec.fields, 'gn', 'generic-new-error');
+    if (!values) return;
+
+    let fotoUrls = {};
+    try { fotoUrls = await subirFotosPendientes('gn', spec.fields); }
+    catch(e){ document.getElementById('generic-new-error').textContent = 'No se pudo subir la foto: ' + e.message; return; }
+
+    const row = { proyecto_id: session.proyectoActivo.id, ...values, ...fotoUrls };
+    for (const k in spec.fixed) row[k] = spec.fixed[k]();
+
+    const { error } = await sb.from(spec.table).insert(row);
+    if (error){
+      document.getElementById('generic-new-error').textContent = 'Error al guardar: ' + error.message;
+      return;
+    }
+    showToast('Registro guardado');
+    abrirGenericList(genericState.specKey);
+  }
+
+  // ---- registro único por proyecto ----
+  async function abrirGenericSingle(specKey){
+    if (!session.proyectoActivo){
+      showToast('Primero elegí un proyecto activo');
+      abrirSelectorProyecto();
+      return;
+    }
+    genericState.specKey = specKey;
+    genericState.kind = 'single';
+    const spec = SINGLE_SPECS[specKey];
+
+    document.getElementById('generic-single-title').textContent = spec.title;
+    document.getElementById('generic-single-header').className = 'form-header' + (spec.color === 'sky' ? ' sky' : '');
+    document.getElementById('generic-single-save').className = 'btn-save' + (spec.color === 'sky' ? ' sky' : '');
+    document.getElementById('generic-single-dot').style.background = spec.color === 'sky' ? 'var(--sky-500)' : '';
+    document.getElementById('generic-single-error').textContent = '';
+    pintarLote('generic-single');
+
+    document.getElementById('generic-single-fields').innerHTML = `<div class="loading">Cargando…</div>`;
+    goTo('generic-single');
+
+    const { data, error } = await sb
+      .from(spec.table)
+      .select('*')
+      .eq('proyecto_id', session.proyectoActivo.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error){
+      document.getElementById('generic-single-fields').innerHTML = `<div class="empty-list">Error: ${error.message}</div>`;
+      return;
+    }
+
+    document.getElementById('generic-single-fields').innerHTML = spec.fields.map(f => fieldHtml(f, 'gs')).join('');
+    genericState.existingId = data ? data.id : null;
+    if (data){
+      fillValues(spec.fields, 'gs', data);
+    } else {
+      fillDefaults(spec.fields, 'gs');
+    }
+  }
+
+  async function guardarGenericSingle(){
+    const spec = SINGLE_SPECS[genericState.specKey];
+    const values = collectValues(spec.fields, 'gs', 'generic-single-error');
+    if (!values) return;
+
+    let fotoUrls = {};
+    try { fotoUrls = await subirFotosPendientes('gs', spec.fields); }
+    catch(e){ document.getElementById('generic-single-error').textContent = 'No se pudo subir la foto: ' + e.message; return; }
+    Object.assign(values, fotoUrls);
+
+    for (const k in spec.fixed) values[k] = spec.fixed[k]();
+
+    let error;
+    if (genericState.existingId){
+      ({ error } = await sb.from(spec.table).update(values).eq('id', genericState.existingId));
+    } else {
+      ({ error } = await sb.from(spec.table).insert({ proyecto_id: session.proyectoActivo.id, ...values }));
+    }
+
+    if (error){
+      document.getElementById('generic-single-error').textContent = 'Error al guardar: ' + error.message;
+      return;
+    }
+    showToast('Guardado');
+    goTo('home');
+  }
+
+  // ---- Aplicaciones: submenú + De Protocolo (3 slots fijos) ----
+  function abrirAplicacionesMenu(){
+    if (!session.proyectoActivo){
+      showToast('Primero elegí un proyecto activo');
+      abrirSelectorProyecto();
+      return;
+    }
+    const p = session.proyectoActivo;
+    document.getElementById('aplic-menu-lot-title').textContent = p.proyecto;
+    document.getElementById('aplic-menu-lot-sub').textContent = (p.nombre_linea || '') + (p.status ? ' · ' + p.status : '');
+    goTo('aplicaciones-menu');
+  }
+
+  const PRODUCTOS_PROTOCOLO = ['Glifosato - Touchdown','Glufosinato - Liberty','Onduty'];
+
+  async function abrirProtocolo(){
+    pintarLote('protocolo');
+    document.getElementById('protocolo-error').textContent = '';
+    const box = document.getElementById('protocolo-fields');
+    box.innerHTML = `<div class="loading">Cargando…</div>`;
+    goTo('protocolo-edit');
+
+    const { data, error } = await sb
+      .from('lm_aplicaciones_protocolo')
+      .select('*')
+      .eq('proyecto_id', session.proyectoActivo.id);
+
+    if (error){
+      box.innerHTML = `<div class="empty-list">Error: ${error.message}</div>`;
+      return;
+    }
+    const porSlot = {1:null, 2:null, 3:null};
+    (data || []).forEach(r => { porSlot[r.n_aplicacion] = r; });
+
+    box.innerHTML = [1,2,3].map(n => `
+      <div>
+        <div class="field-label">Aplicación ${n}</div>
+        <select class="field-input" id="protocolo-producto-${n}" style="margin-bottom:9px;">
+          <option value="">-Seleccione-</option>
+          ${PRODUCTOS_PROTOCOLO.map(p => `<option value="${p}">${p}</option>`).join('')}
+        </select>
+        <div class="field-row" style="margin-bottom:9px;">
+          <input type="number" step="0.01" class="field-input" id="protocolo-dosis-${n}" placeholder="Dosis">
+          <input type="date" class="field-input" id="protocolo-fecha-${n}">
+        </div>
+        <input type="file" accept="image/*" capture="environment" id="protocolo-foto-${n}-file" style="display:none;" onchange="onFotoElegida('protocolo-foto-${n}')">
+        <div class="photo-add" onclick="document.getElementById('protocolo-foto-${n}-file').click()">📷 Foto (opcional)</div>
+        <img class="photo-preview" id="protocolo-foto-${n}-preview">
+        <div class="photo-status" id="protocolo-foto-${n}-status"></div>
+      </div>
+    `).join('');
+
+    [1,2,3].forEach(n => {
+      const r = porSlot[n];
+      if (r){
+        if (r.producto) document.getElementById(`protocolo-producto-${n}`).value = r.producto;
+        if (r.dosis != null) document.getElementById(`protocolo-dosis-${n}`).value = r.dosis;
+        if (r.fecha) document.getElementById(`protocolo-fecha-${n}`).value = r.fecha;
+      }
+    });
+    genericState.protocoloExistente = porSlot;
+  }
+
+  async function guardarProtocolo(){
+    const errBox = document.getElementById('protocolo-error');
+    errBox.textContent = '';
+    for (const n of [1,2,3]){
+      const producto = document.getElementById(`protocolo-producto-${n}`).value || null;
+      const dosisRaw = document.getElementById(`protocolo-dosis-${n}`).value;
+      const fecha = document.getElementById(`protocolo-fecha-${n}`).value || null;
+      const fotoId = `protocolo-foto-${n}`;
+      const tieneFoto = !!fotosSeleccionadas[fotoId];
+      if (!producto && !dosisRaw && !fecha && !tieneFoto) continue; // slot vacío, no tocar
+
+      const row = {
+        producto, fecha,
+        dosis: dosisRaw === '' ? null : parseFloat(dosisRaw),
+        operario_id: session.operario.id
+      };
+
+      if (tieneFoto){
+        const statusBox = document.getElementById(fotoId + '-status');
+        statusBox.textContent = 'Subiendo...';
+        const file = fotosSeleccionadas[fotoId];
+        const path = `${session.operario.id}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g,'_')}`;
+        const { error: errUpload } = await sb.storage.from('lm-fotos').upload(path, file);
+        if (errUpload){
+          errBox.textContent = `Error subiendo foto de Aplicación ${n}: ` + errUpload.message;
+          return;
+        }
+        const { data } = sb.storage.from('lm-fotos').getPublicUrl(path);
+        row.foto_url = data.publicUrl;
+        statusBox.textContent = 'Subida ✓';
+        delete fotosSeleccionadas[fotoId];
+      }
+
+      const existente = genericState.protocoloExistente ? genericState.protocoloExistente[n] : null;
+
+      let error;
+      if (existente){
+        ({ error } = await sb.from('lm_aplicaciones_protocolo').update(row).eq('id', existente.id));
+      } else {
+        ({ error } = await sb.from('lm_aplicaciones_protocolo').insert({
+          proyecto_id: session.proyectoActivo.id, n_aplicacion: n, ...row
+        }));
+      }
+      if (error){
+        errBox.textContent = `Error en Aplicación ${n}: ` + error.message;
+        return;
+      }
+    }
+    showToast('Guardado');
+    goTo('aplicaciones-menu');
+  }
+
+  // ======== TRACKEO (mapa + GPS) — 2 modos, como GestorLotes ========
+  let trackeoState = {
+    map:null, points:[], markers:[], polyLayer:null,
+    mode:null,           // 'gps' | 'draw'
+    watchId:null,        // id de navigator.geolocation.watchPosition
+    tracking:false,
+    marcadorActual:null, // posición en vivo durante "Recorrer GPS"
+  };
+
+  const DISTANCIA_MIN_METROS = 1.5; // filtra ruido de GPS: no agrega un punto nuevo si está más cerca que esto del anterior
+
+  const TRACKEO_FIELDS = [
+    { key:'tipo_material', label:'Tipo de material', type:'select-fixed', required:true, options:['TRI Maiz','LM Maiz','Girasol'], default:'LM Maiz' },
+    { key:'proyecto_provisorio', label:'Proyecto (provisorio)', type:'text' },
+    { key:'categoria', label:'Categoría', type:'text' },
+    { key:'nombre_linea', label:'Nombre línea', type:'text' },
+    { key:'nombre_linea_a', label:'Nombre línea A', type:'text' },
+    { key:'nombre_linea_b', label:'Nombre línea B', type:'text' },
+    { key:'nombre_linea_r', label:'Nombre línea R', type:'text' },
+    { key:'lm_pbs', label:'lm_pbs', type:'text' },
+    { key:'descripcion_evento', label:'Descripción evento', type:'text' },
+    { key:'variedad', label:'Variedad', type:'text' },
+    { key:'ciclo', label:'Ciclo', type:'text' },
+    { key:'hibrido', label:'Híbrido', type:'text' },
+    { key:'localidad', label:'Localidad', type:'text' },
+    { key:'campana', label:'Campaña', type:'text' },
+    { key:'lote', label:'Lote', type:'text' },
+    { key:'modalidad', label:'Modalidad', type:'text' },
+    { key:'grower', label:'Grower / Cooperador', type:'text' },
+  ];
+
+  function abrirTrackeo(){
+    trackeoState.points = [];
+    trackeoState.mode = null;
+    goTo('trackeo-mode');
+  }
+
+  function iniciarModoGps(){
+    trackeoState.mode = 'gps';
+    trackeoState.points = [];
+    document.getElementById('trackeo-map-title').textContent = 'Trackeo — Recorrer GPS';
+    document.getElementById('trackeo-gps-controls').style.display = 'flex';
+    document.getElementById('trackeo-draw-controls').style.display = 'none';
+    document.getElementById('trackeo-gps-error').textContent = '';
+    goTo('trackeo-map');
+    setTimeout(initTrackeoMap, 50);
+  }
+
+  function iniciarModoDibujo(){
+    trackeoState.mode = 'draw';
+    trackeoState.points = [];
+    document.getElementById('trackeo-map-title').textContent = 'Trackeo — Dibujar';
+    document.getElementById('trackeo-gps-controls').style.display = 'none';
+    document.getElementById('trackeo-draw-controls').style.display = 'flex';
+    document.getElementById('trackeo-gps-error').textContent = '';
+    goTo('trackeo-map');
+    setTimeout(initTrackeoMap, 50);
+  }
+
+  function cerrarTrackeoMap(){
+    detenerSeguimientoUbicacion();
+    goTo('trackeo-mode');
+  }
+
+  function initTrackeoMap(){
+    if (trackeoState.map){
+      trackeoState.map.remove();
+      trackeoState.map = null;
+    }
+    const map = L.map('trackeo-leaflet', { zoomControl: true, maxZoom: 22 }).setView([-33.75, -61.96], 15);
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Tiles © Esri',
+      maxNativeZoom: 19,  // resolución real disponible del satélite
+      maxZoom: 22          // permite seguir acercando (ampliado, no gris) para marcar con precisión
+    }).addTo(map);
+    trackeoState.map = map;
+    trackeoState.markers = [];
+    trackeoState.polyLayer = null;
+    trackeoState.marcadorActual = null;
+    actualizarUiTrackeo();
+
+    if (navigator.geolocation){
+      navigator.geolocation.getCurrentPosition(
+        pos => map.setView([pos.coords.latitude, pos.coords.longitude], 19),
+        () => {}
+      );
+    }
+
+    if (trackeoState.mode === 'draw'){
+      map.on('click', e => {
+        agregarPunto([e.latlng.lat, e.latlng.lng]);
+      });
+    }
+
+    iniciarSeguimientoUbicacion();
+  }
+
+  function distanciaMetros(a, b){
+    const p1 = turf.point([a[1], a[0]]);
+    const p2 = turf.point([b[1], b[0]]);
+    return turf.distance(p1, p2, { units:'kilometers' }) * 1000;
+  }
+
+  function agregarPunto(latlng){
+    const ultimo = trackeoState.points[trackeoState.points.length - 1];
+    if (ultimo && distanciaMetros(ultimo, latlng) < DISTANCIA_MIN_METROS) return; // filtra ruido
+
+    trackeoState.points.push(latlng);
+    const marker = L.circleMarker(latlng, { radius: 6, color: '#e3a94a', fillColor: '#e3a94a', fillOpacity: 1 }).addTo(trackeoState.map);
+    trackeoState.markers.push(marker);
+
+    redibujarLineaTrackeo();
+    actualizarUiTrackeo();
+  }
+
+  // ---- Ubicación en vivo: SIEMPRE activa mientras el mapa está abierto,
+  // en los dos modos — es lo que dibuja el punto azul de "dónde estoy".
+  // Es independiente de si se están agregando vértices al polígono o no.
+  function iniciarSeguimientoUbicacion(){
+    if (!navigator.geolocation){
+      document.getElementById('trackeo-gps-error').textContent = 'Este dispositivo no soporta GPS';
+      return;
+    }
+    if (trackeoState.watchId !== null) return; // ya está corriendo
+
+    trackeoState.watchId = navigator.geolocation.watchPosition(
+      pos => {
+        const latlng = [pos.coords.latitude, pos.coords.longitude];
+
+        if (trackeoState.marcadorActual) trackeoState.map.removeLayer(trackeoState.marcadorActual);
+        trackeoState.marcadorActual = L.circleMarker(latlng, {
+          radius: 8, color:'#2f6fa0', weight:3, fillColor:'#5b9bd5', fillOpacity:0.9
+        }).addTo(trackeoState.map).bindTooltip('Vos estás acá', { permanent:false });
+
+        if (trackeoState.mode === 'gps'){
+          document.getElementById('trackeo-gps-error').textContent = `Precisión: ±${Math.round(pos.coords.accuracy)} m`;
+        }
+
+        // en modo GPS, mientras el recorrido está "iniciado", cada
+        // posición nueva también se agrega como vértice del polígono
+        if (trackeoState.tracking){
+          trackeoState.map.panTo(latlng);
+          agregarPunto(latlng);
+        }
+      },
+      err => {
+        document.getElementById('trackeo-gps-error').textContent = 'No se pudo obtener el GPS. Revisá los permisos de ubicación.';
+      },
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
+    );
+  }
+
+  function detenerSeguimientoUbicacion(){
+    if (trackeoState.watchId !== null){
+      navigator.geolocation.clearWatch(trackeoState.watchId);
+      trackeoState.watchId = null;
+    }
+  }
+
+  // ---- Modo Recorrer GPS: solo prende/apaga si los puntos del
+  // seguimiento en vivo se van sumando al polígono ----
+  function toggleRecorridoGps(){
+    trackeoState.tracking = !trackeoState.tracking;
+    const btn = document.getElementById('btn-gps-toggle');
+    btn.textContent = trackeoState.tracking ? '⏹ Detener recorrido' : '▶ Iniciar recorrido';
+  }
+
+  function deshacerPuntoTrackeo(){
+    if (trackeoState.points.length === 0) return;
+    trackeoState.points.pop();
+    const m = trackeoState.markers.pop();
+    if (m) trackeoState.map.removeLayer(m);
+    redibujarLineaTrackeo();
+    actualizarUiTrackeo();
+  }
+
+  function redibujarLineaTrackeo(){
+    if (trackeoState.polyLayer){
+      trackeoState.map.removeLayer(trackeoState.polyLayer);
+      trackeoState.polyLayer = null;
+    }
+    if (trackeoState.points.length >= 2){
+      trackeoState.polyLayer = L.polygon(trackeoState.points, { color:'#e3a94a', weight:3, fillOpacity:0.15 }).addTo(trackeoState.map);
+    }
+  }
+
+  function calcularSuperficieHa(){
+    if (trackeoState.points.length < 3) return null;
+    const coords = trackeoState.points.map(([lat,lng]) => [lng, lat]);
+    coords.push(coords[0]);
+    const poly = turf.polygon([coords]);
+    const m2 = turf.area(poly);
+    return m2 / 10000;
+  }
+
+  function actualizarUiTrackeo(){
+    document.getElementById('trackeo-punto-count').textContent = trackeoState.points.length;
+    const ha = calcularSuperficieHa();
+    document.getElementById('trackeo-superficie').textContent = ha ? ha.toFixed(4) + ' ha (aprox)' : '—';
+    const btn = document.getElementById('btn-cerrar-poligono');
+    btn.classList.toggle('ready', trackeoState.points.length >= 3);
+  }
+
+  function cerrarPoligonoTrackeo(){
+    if (trackeoState.points.length < 3) return;
+    detenerSeguimientoUbicacion();
+    const ha = calcularSuperficieHa();
+    document.getElementById('trackeo-form-superficie').textContent = ha.toFixed(4) + ' ha (aprox. — el valor final lo calcula la base de datos)';
+    document.getElementById('trackeo-form-error').textContent = '';
+    document.getElementById('trackeo-form-fields').innerHTML = TRACKEO_FIELDS.map(f => fieldHtml(f, 'tk')).join('');
+    fillDefaults(TRACKEO_FIELDS, 'tk');
+    goTo('trackeo-form');
+  }
+
+  function puntosAWkt(points){
+    const anillo = points.map(([lat,lng]) => `${lng} ${lat}`);
+    anillo.push(anillo[0]);
+    return `SRID=4326;POLYGON((${anillo.join(', ')}))`;
+  }
+
+  async function guardarTrackeo(){
+    const errBox = document.getElementById('trackeo-form-error');
+    const values = collectValues(TRACKEO_FIELDS, 'tk', 'trackeo-form-error');
+    if (!values) return;
+
+    if (trackeoState.points.length < 3){
+      errBox.textContent = 'Faltan puntos del polígono';
+      return;
+    }
+
+    const row = {
+      ...values,
+      poligono: puntosAWkt(trackeoState.points),
+      responsable_id: session.operario.id,
+      fecha: new Date().toISOString(),
+    };
+
+    const { error } = await sb.from('lm_trackeo').insert(row);
+    if (error){
+      errBox.textContent = 'Error al guardar: ' + error.message;
+      return;
+    }
+    showToast('Trackeo guardado');
+    goTo('home');
+  }
+
+
+  cargarOperarios();
+
+  if ('serviceWorker' in navigator){
+    navigator.serviceWorker.register('sw.js').catch(()=>{});
+  }
+</script>
+</body>
+</html>
