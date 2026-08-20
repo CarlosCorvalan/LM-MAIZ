@@ -1,0 +1,943 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LM Maíz — Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --grain-500:#2e7d46; --grain-600:#1f5c33; --grain-100:#e6f5ea;
+    --sky-500:#2f6fa0; --sky-600:#1f5578; --sky-100:#e5f0f8;
+    --alert-500:#c05a35; --alert-100:#f7e2d7;
+    --soil-900:#1c2419; --soil-700:#4a4331; --soil-500:#6b7268;
+    --paper-050:#ffffff; --paper-100:#f7f8f5; --paper-200:#eef1ec; --line:#e3e6df;
+  }
+  *{box-sizing:border-box;}
+  body{ margin:0; font-family:'Inter',sans-serif; background:var(--paper-100); color:var(--soil-900); min-height:100vh; }
+  .mono{ font-family:'JetBrains Mono',monospace; }
+  .hidden{ display:none !important; }
+
+  #login-screen{ min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px;
+    background: linear-gradient(160deg, #3d9159, var(--grain-500) 60%, #1a4d2c); }
+  .login-box{ background:#fff; border-radius:18px; padding:32px; width:100%; max-width:380px; box-shadow:0 20px 50px rgba(0,0,0,0.2); }
+  .login-mark{ width:48px; height:48px; border-radius:12px; background:linear-gradient(135deg,var(--grain-500),var(--sky-500)); display:flex; align-items:center; justify-content:center; font-family:'Space Grotesk'; font-weight:700; color:#fff; font-size:17px; margin:0 auto 14px; }
+  .login-title{ text-align:center; font-family:'Space Grotesk'; font-size:18px; font-weight:600; margin-bottom:2px; }
+  .login-sub{ text-align:center; font-size:12px; color:var(--soil-500); margin-bottom:22px; }
+  .field-label{ font-size:11.5px; font-weight:700; color:var(--soil-500); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:6px; display:block; }
+  .field-input{ width:100%; background:var(--paper-200); border:1.5px solid var(--line); border-radius:10px; padding:12px 13px; font-size:14px; font-family:'Inter'; margin-bottom:14px; }
+  .btn-primary{ width:100%; background:var(--grain-500); color:#fff; border:none; border-radius:10px; padding:13px 0; font-weight:700; font-size:14px; cursor:pointer; }
+  .btn-primary:hover{ background:var(--grain-600); }
+  .btn-primary:disabled{ opacity:0.5; cursor:not-allowed; }
+  .login-error{ color:var(--alert-500); font-size:12.5px; text-align:center; margin-top:10px; min-height:16px; }
+  .who-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:8px; margin-bottom:16px; }
+  .who-card{ background:var(--paper-200); border:1.5px solid var(--line); border-radius:10px; padding:12px 8px; text-align:center; cursor:pointer; font-size:12.5px; font-weight:600; }
+  .who-card:hover{ border-color:var(--grain-500); }
+  .who-card.chosen{ border-color:var(--grain-500); background:var(--grain-100); }
+
+  #denied-screen{ min-height:100vh; display:flex; align-items:center; justify-content:center; text-align:center; padding:20px; }
+
+  #app-screen{ display:none; min-height:100vh; }
+  #app-screen.active{ display:block; }
+  header.top{ background:#fff; border-bottom:1px solid var(--line); padding:16px 24px; display:flex; justify-content:space-between; align-items:center; }
+  header.top .brand{ display:flex; align-items:center; gap:10px; }
+  header.top .name{ font-family:'Space Grotesk'; font-weight:600; font-size:16px; }
+  .logout-link{ font-size:12.5px; color:var(--soil-500); cursor:pointer; }
+
+  .tabs{ display:flex; gap:6px; padding:16px 24px 0; background:#fff; border-bottom:1px solid var(--line); }
+  .tab-btn{ background:transparent; border:none; padding:10px 16px; font-size:13.5px; font-weight:600; color:var(--soil-500); cursor:pointer; border-bottom:2px solid transparent; }
+  .tab-btn.active{ color:var(--grain-600); border-bottom-color:var(--grain-500); }
+
+  main{ max-width:920px; margin:0 auto; padding:28px 24px 60px; }
+  .tab-content{ display:none; }
+  .tab-content.active{ display:block; }
+
+  .card{ background:#fff; border:1px solid var(--line); border-radius:14px; padding:22px; margin-bottom:18px; }
+  .card h2{ font-family:'Space Grotesk'; font-size:16px; margin:0 0 4px; }
+  .card .desc{ font-size:12.5px; color:var(--soil-500); margin-bottom:18px; }
+
+  .step-badge{ display:inline-flex; align-items:center; justify-content:center; width:22px; height:22px; border-radius:50%; background:var(--grain-500); color:#fff; font-size:11.5px; font-weight:700; margin-right:8px; }
+  .step-title{ font-weight:700; font-size:14px; margin:20px 0 12px; display:flex; align-items:center; }
+  .step-title:first-child{ margin-top:0; }
+
+  table{ width:100%; border-collapse:collapse; font-size:12.5px; }
+  th{ text-align:left; padding:8px 10px; background:var(--paper-200); font-size:11px; text-transform:uppercase; letter-spacing:0.03em; color:var(--soil-500); }
+  td{ padding:8px 10px; border-bottom:1px solid var(--line); }
+  select, input[type=text]{ font-family:'Inter'; font-size:12.5px; padding:6px 8px; border:1px solid var(--line); border-radius:6px; background:#fff; }
+
+  .sheet-block{ border:1px solid var(--line); border-radius:10px; padding:14px; margin-bottom:12px; }
+  .sheet-block .sheet-head{ display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .sheet-block .sheet-name{ font-family:'JetBrains Mono'; font-weight:700; font-size:13px; }
+  .map-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; }
+  .map-field label{ font-size:10.5px; color:var(--soil-500); display:block; margin-bottom:3px; }
+  .map-field select, .map-field input{ width:100%; }
+
+  .kpi-row{ display:flex; gap:14px; margin:14px 0; flex-wrap:wrap; }
+  .kpi{ background:var(--paper-200); border-radius:10px; padding:12px 16px; }
+  .kpi .kv{ font-family:'JetBrains Mono'; font-size:20px; font-weight:700; }
+  .kpi .kl{ font-size:10.5px; color:var(--soil-500); text-transform:uppercase; }
+
+  .log-box{ background:var(--soil-900); color:#d4e8d9; font-family:'JetBrains Mono'; font-size:11.5px; padding:14px; border-radius:10px; max-height:220px; overflow-y:auto; white-space:pre-wrap; margin-top:14px; }
+
+  .campana-row{ display:flex; justify-content:space-between; align-items:center; padding:12px 14px; border:1px solid var(--line); border-radius:10px; margin-bottom:8px; }
+  .campana-row.activa{ border-color:var(--grain-500); background:var(--grain-100); }
+  .campana-row .cname{ font-weight:700; font-size:13.5px; }
+  .campana-row .ccode{ font-family:'JetBrains Mono'; font-size:11.5px; color:var(--soil-500); }
+  .badge-activa{ background:var(--grain-500); color:#fff; font-size:10px; font-weight:700; padding:3px 9px; border-radius:20px; }
+  .btn-small{ background:var(--sky-500); color:#fff; border:none; border-radius:8px; padding:8px 14px; font-size:12px; font-weight:600; cursor:pointer; }
+  .btn-small:hover{ background:var(--sky-600); }
+
+  .alert-box{ background:var(--alert-100); color:#8a3a1f; border-radius:10px; padding:12px 14px; font-size:12.5px; margin-bottom:14px; }
+  .toast{ position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:var(--soil-900); color:#fff; padding:10px 18px; border-radius:10px; font-size:12.5px; z-index:20; opacity:0; transition:opacity .25s; pointer-events:none; }
+  .toast.show{ opacity:1; }
+</style>
+</head>
+<body>
+
+<!-- ===== LOGIN ===== -->
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-mark">LM</div>
+    <div class="login-title">Panel de administración</div>
+    <div class="login-sub">Importar campañas · Activar campaña</div>
+
+    <div id="login-step-who">
+      <label class="field-label">¿Quién sos?</label>
+      <div class="who-grid" id="admin-operarios-grid"><div style="grid-column:1/-1; text-align:center; color:var(--soil-500); font-size:12.5px;">Cargando…</div></div>
+    </div>
+
+    <div id="login-step-pass" class="hidden">
+      <label class="field-label">Contraseña</label>
+      <input type="password" class="field-input" id="admin-password" onkeydown="if(event.key==='Enter') hacerLogin()">
+      <button class="btn-primary" onclick="hacerLogin()">Ingresar</button>
+    </div>
+    <div class="login-error" id="login-error"></div>
+  </div>
+</div>
+
+<!-- ===== ACCESO DENEGADO ===== -->
+<div id="denied-screen" class="hidden">
+  <div>
+    <h2>Sin permiso</h2>
+    <p style="color:var(--soil-500); font-size:13.5px;">Esta cuenta no tiene rol de administrador o supervisor.</p>
+    <p class="logout-link" onclick="location.reload()">Volver a intentar</p>
+  </div>
+</div>
+
+<!-- ===== PANEL PRINCIPAL ===== -->
+<div id="app-screen">
+  <header class="top">
+    <div class="brand">
+      <div class="login-mark" style="margin:0; width:34px; height:34px; font-size:13px;">LM</div>
+      <div class="name">Panel de administración</div>
+    </div>
+    <div class="logout-link" onclick="location.reload()">Salir</div>
+  </header>
+
+  <div class="tabs">
+    <button class="tab-btn active" onclick="cambiarTab('importar')">Importar Campaña</button>
+    <button class="tab-btn" onclick="cambiarTab('historico')">Migración histórica</button>
+    <button class="tab-btn" onclick="cambiarTab('activar')">Campaña Activa</button>
+  </div>
+
+  <main>
+    <!-- ===== TAB: IMPORTAR CAMPAÑA ===== -->
+    <div class="tab-content active" id="tab-importar">
+      <div class="card">
+        <h2>1. Subir Excel de planificación</h2>
+        <div class="desc">El archivo con las hojas por fecha de siembra (1ra, 2da, 3ra, USA, o como vengan nombradas ese año).</div>
+        <input type="file" id="import-file" accept=".xlsx,.xls" onchange="onArchivoSeleccionado(event)">
+      </div>
+
+      <div class="card hidden" id="card-mapeo">
+        <h2>2. Mapear cada hoja</h2>
+        <div class="desc">Elegí qué columna es cada dato — el nombre de las columnas puede cambiar de un año a otro, por eso se confirma a mano en vez de adivinar.</div>
+        <div id="sheets-container"></div>
+
+        <div class="step-title"><span class="step-badge">3</span>Datos de la campaña</div>
+        <div class="map-grid">
+          <div class="map-field"><label>Código de campaña</label><input type="text" id="campana-codigo" placeholder="Ej: 2627"></div>
+          <div class="map-field"><label>Nombre (opcional)</label><input type="text" id="campana-nombre" placeholder="Ej: Campaña 2026/27"></div>
+          <div class="map-field"><label>Patrón de código de proyecto (regex)</label><input type="text" id="proyecto-regex" value="^[A-Za-z]{1,4}\\d+$"></div>
+        </div>
+
+        <button class="btn-primary" style="margin-top:18px; width:auto; padding:12px 22px;" onclick="analizarImportacion()">Analizar</button>
+      </div>
+
+      <div class="card hidden" id="card-preview">
+        <h2>4. Revisar antes de confirmar</h2>
+        <div class="kpi-row" id="preview-kpis"></div>
+        <div id="preview-rechazadas"></div>
+        <table id="preview-table"><thead></thead><tbody></tbody></table>
+        <button class="btn-primary" style="margin-top:18px; width:auto; padding:12px 22px;" onclick="confirmarImportacion()">Confirmar importación</button>
+        <div class="log-box hidden" id="import-log"></div>
+      </div>
+    </div>
+
+
+    <!-- ===== TAB: MIGRACIÓN HISTÓRICA ===== -->
+    <div class="tab-content" id="tab-historico">
+      <div class="card">
+        <h2>Migración histórica desde Excel</h2>
+        <div class="desc">Carga controlada del archivo exportado de ArcGIS/Survey hacia las tablas LM de Supabase. Primero se valida y muestra un resumen; recién después se confirma la carga. Los formatos de fecha y los mapeos de columnas están verificados contra el archivo real (no son una adivinanza) — ver comentarios en el código.</div>
+        <div class="map-grid">
+          <div class="map-field"><label>Archivo histórico (.xlsx)</label><input type="file" id="hist-file" accept=".xlsx,.xls" onchange="histArchivo(event)"></div>
+          <div class="map-field"><label>Campaña histórica</label><input type="text" id="hist-campana" placeholder="Ej: 2425 o 2526"></div>
+        </div>
+        <div class="alert-box" style="margin-top:12px">La campaña 2526 está protegida. Para cargarla hay que escribir exactamente <b>AUTORIZO 2526</b> en el campo de confirmación.</div>
+        <div class="map-grid">
+          <div class="map-field"><label>Confirmación especial (solo 2526)</label><input type="text" id="hist-autorizacion" placeholder="AUTORIZO 2526"></div>
+        </div>
+        <div id="hist-sheets" style="margin-top:14px"></div>
+        <button class="btn-primary" style="margin-top:18px; width:auto; padding:12px 22px" onclick="histAnalizar()">Validar archivo</button>
+      </div>
+      <div class="card hidden" id="hist-preview">
+        <h2>Resumen de validación</h2>
+        <div class="kpi-row" id="hist-kpis"></div>
+        <div id="hist-detail"></div>
+        <button class="btn-primary" style="margin-top:18px; width:auto; padding:12px 22px" onclick="histConfirmar()">Confirmar migración</button>
+        <div class="log-box hidden" id="hist-log"></div>
+      </div>
+    </div>
+
+    <!-- ===== TAB: ACTIVAR CAMPAÑA ===== -->
+    <div class="tab-content" id="tab-activar">
+      <div class="card">
+        <h2>Campañas</h2>
+        <div class="desc">Solo una puede estar activa a la vez — es la que ven los operarios al elegir proyecto en la app de campo/planta. El resto queda disponible como histórico de solo lectura.</div>
+        <div id="campanas-list"><div style="color:var(--soil-500); font-size:12.5px;">Cargando…</div></div>
+      </div>
+      <div class="card">
+        <h2>Agregar campaña nueva</h2>
+        <div class="desc">Si todavía no la importaste, podés crearla acá vacía y activarla cuando quieras.</div>
+        <div class="map-grid">
+          <div class="map-field"><label>Código</label><input type="text" id="nueva-campana-codigo" placeholder="Ej: 2627"></div>
+          <div class="map-field"><label>Nombre</label><input type="text" id="nueva-campana-nombre" placeholder="Ej: Campaña 2026/27"></div>
+        </div>
+        <button class="btn-small" style="margin-top:12px;" onclick="crearCampana()">Agregar</button>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  const SUPABASE_URL = "https://aljgksevggwtfndqxoiy.supabase.co";
+  const SUPABASE_KEY = "sb_publishable_IEGX-ej9_w-tksybzT2Vfw_riE98P7m";
+  const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  let adminState = { operario:null, operariosCache:[], sheetsData:null, familiasParaImportar:[], rechazadas:[] };
+
+  function showToast(msg){
+    const t = document.getElementById('toast');
+    t.textContent = msg; t.classList.add('show');
+    setTimeout(()=>t.classList.remove('show'), 2500);
+  }
+
+  // ======== LOGIN (mismo patrón de la app de campo) ========
+  async function cargarOperariosAdmin(){
+    const grid = document.getElementById('admin-operarios-grid');
+    const { data, error } = await sb.from('lm_operarios').select('id, nombre_completo, rol, email').eq('activo', true).order('nombre_completo');
+    if (error || !data || data.length === 0){
+      grid.innerHTML = `<div style="grid-column:1/-1; color:var(--alert-500); font-size:12.5px;">No se pudieron cargar operarios.</div>`;
+      return;
+    }
+    adminState.operariosCache = data;
+    grid.innerHTML = data.map(op => `<div class="who-card" onclick="elegirOperarioAdmin('${op.id}')">${op.nombre_completo}<br><span style="color:var(--soil-500); font-weight:400;">${op.rol}</span></div>`).join('');
+  }
+
+  function elegirOperarioAdmin(id){
+    adminState.operario = adminState.operariosCache.find(o => o.id === id);
+    document.querySelectorAll('#admin-operarios-grid .who-card').forEach(c => c.classList.remove('chosen'));
+    event.target.closest('.who-card').classList.add('chosen');
+    document.getElementById('login-step-pass').classList.remove('hidden');
+    document.getElementById('admin-password').focus();
+  }
+
+  async function hacerLogin(){
+    const errBox = document.getElementById('login-error');
+    if (!adminState.operario){ errBox.textContent = 'Elegí quién sos'; return; }
+    const password = document.getElementById('admin-password').value;
+    if (!password){ errBox.textContent = 'Ingresá tu contraseña'; return; }
+    if (!adminState.operario.email){ errBox.textContent = 'Este operario no tiene email cargado'; return; }
+
+    errBox.textContent = 'Verificando…';
+    const { error } = await sb.auth.signInWithPassword({ email: adminState.operario.email, password });
+    if (error){ errBox.textContent = 'Email o contraseña incorrectos'; return; }
+
+    if (!['admin','supervisor'].includes(adminState.operario.rol)){
+      document.getElementById('login-screen').classList.add('hidden');
+      document.getElementById('denied-screen').classList.remove('hidden');
+      return;
+    }
+    errBox.textContent = '';
+    document.getElementById('login-screen').classList.add('hidden');
+    document.getElementById('app-screen').classList.add('active');
+    cargarCampanas();
+  }
+
+  function cambiarTab(tab){
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    event.target.classList.add('active');
+    document.getElementById('tab-' + tab).classList.add('active');
+    if (tab === 'activar') cargarCampanas();
+  }
+
+  // ======== IMPORTAR CAMPAÑA ========
+  const CAMPO_TARGETS = [
+    { key:'proyecto', label:'Proyecto' },
+    { key:'matid', label:'MATID' },
+    { key:'linea', label:'Línea' },
+    { key:'surcos', label:'Surcos' },
+    { key:'evento', label:'Evento' },
+  ];
+
+  function onArchivoSeleccionado(ev){
+    const file = ev.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      const wb = XLSX.read(new Uint8Array(e.target.result), { type:'array' });
+      adminState.sheetsData = {};
+      wb.SheetNames.forEach(name => {
+        const ws = wb.Sheets[name];
+        const rows = XLSX.utils.sheet_to_json(ws, { header:1, raw:true, defval:null });
+        if (rows.length < 2) return;
+        adminState.sheetsData[name] = rows;
+      });
+      renderSheetMappers();
+      document.getElementById('card-mapeo').classList.remove('hidden');
+      document.getElementById('card-preview').classList.add('hidden');
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  function guessColumn(headers, patterns){
+    const lower = headers.map(h => (h||'').toString().toLowerCase());
+    for (const pat of patterns){
+      const idx = lower.findIndex(h => h.includes(pat));
+      if (idx !== -1) return idx;
+    }
+    return -1;
+  }
+
+  function renderSheetMappers(){
+    const container = document.getElementById('sheets-container');
+    container.innerHTML = '';
+    let n = 0;
+    for (const [sheetName, rows] of Object.entries(adminState.sheetsData)){
+      n++;
+      const headers = rows[0].map(h => h === null ? '' : String(h));
+      const guessFs = /1/.test(sheetName) ? 1 : /2/.test(sheetName) ? 2 : /3/.test(sheetName) ? 3 : '';
+      const guessUsa = /usa/i.test(sheetName);
+
+      const guessProy = guessColumn(headers, ['proyecto']);
+      const guessMatid = guessColumn(headers, ['mat id','matid']);
+      const guessLinea = guessColumn(headers, ['línea','linea']);
+      const guessSurcos = guessColumn(headers, ['surco']);
+      const guessEvento = guessColumn(headers, ['evento']);
+
+      const optHtml = (guess) => headers.map((h,i) => `<option value="${i}" ${i===guess?'selected':''}>${h || '(col '+i+')'}</option>`).join('');
+
+      const block = document.createElement('div');
+      block.className = 'sheet-block';
+      block.dataset.sheet = sheetName;
+      block.innerHTML = `
+        <div class="sheet-head">
+          <div><label><input type="checkbox" class="sheet-incluir" checked> </label><span class="sheet-name">${sheetName}</span> <span style="color:var(--soil-500); font-size:11.5px;">(${rows.length - 1} filas)</span></div>
+          <div class="map-field" style="width:160px;"><label>FS / grupo</label>
+            <select class="sheet-fs">
+              <option value="1" ${guessFs===1?'selected':''}>1ra fecha</option>
+              <option value="2" ${guessFs===2?'selected':''}>2da fecha</option>
+              <option value="3" ${guessFs===3?'selected':''}>3ra fecha</option>
+              <option value="usa" ${guessUsa?'selected':''}>USA (sin FS)</option>
+            </select>
+          </div>
+        </div>
+        <div class="map-grid">
+          <div class="map-field"><label>Columna Proyecto</label><select class="col-proyecto">${optHtml(guessProy)}</select></div>
+          <div class="map-field"><label>Columna MATID</label><select class="col-matid">${optHtml(guessMatid)}</select></div>
+          <div class="map-field"><label>Columna Línea</label><select class="col-linea">${optHtml(guessLinea)}</select></div>
+          <div class="map-field"><label>Columna Surcos</label><select class="col-surcos">${optHtml(guessSurcos)}</select></div>
+          <div class="map-field"><label>Columna Evento</label><select class="col-evento">${optHtml(guessEvento)}</select></div>
+        </div>
+      `;
+      container.appendChild(block);
+    }
+  }
+
+  function analizarImportacion(){
+    const campana = document.getElementById('campana-codigo').value.trim();
+    if (!campana){ showToast('Falta el código de campaña'); return; }
+    let regex;
+    try { regex = new RegExp(document.getElementById('proyecto-regex').value); }
+    catch(e){ showToast('El patrón de proyecto no es una expresión regular válida'); return; }
+
+    const filas = [];
+    const rechazadas = [];
+
+    document.querySelectorAll('.sheet-block').forEach(block => {
+      if (!block.querySelector('.sheet-incluir').checked) return;
+      const sheetName = block.dataset.sheet;
+      const rows = adminState.sheetsData[sheetName];
+      const fsVal = block.querySelector('.sheet-fs').value;
+      const fs_numero = fsVal === 'usa' ? null : parseInt(fsVal);
+      const es_usa = fsVal === 'usa';
+
+      const iProy = parseInt(block.querySelector('.col-proyecto').value);
+      const iMatid = parseInt(block.querySelector('.col-matid').value);
+      const iLinea = parseInt(block.querySelector('.col-linea').value);
+      const iSurcos = parseInt(block.querySelector('.col-surcos').value);
+      const iEvento = parseInt(block.querySelector('.col-evento').value);
+
+      for (let r = 1; r < rows.length; r++){
+        const row = rows[r];
+        const proyecto = row[iProy] != null ? String(row[iProy]).trim() : '';
+        if (!proyecto || !regex.test(proyecto)){
+          if (proyecto) rechazadas.push({ hoja: sheetName, fila: r+1, proyecto });
+          continue;
+        }
+        filas.push({
+          proyecto_codigo: proyecto,
+          matid: row[iMatid] != null ? String(row[iMatid]).trim() : null,
+          linea: row[iLinea] != null ? String(row[iLinea]).trim() : null,
+          surcos: row[iSurcos] != null && row[iSurcos] !== '' ? parseInt(row[iSurcos]) || null : null,
+          evento: row[iEvento] != null ? String(row[iEvento]).trim() : null,
+          fs_numero, es_usa,
+        });
+      }
+    });
+
+    adminState.familiasParaImportar = filas;
+    adminState.rechazadas = rechazadas;
+    adminState.campanaCodigo = campana;
+    adminState.campanaNombre = document.getElementById('campana-nombre').value.trim();
+
+    mostrarPreview();
+  }
+
+  function mostrarPreview(){
+    const filas = adminState.familiasParaImportar;
+    const proyectos = new Set(filas.map(f => f.proyecto_codigo));
+
+    document.getElementById('preview-kpis').innerHTML = `
+      <div class="kpi"><div class="kv">${filas.length}</div><div class="kl">Familias válidas</div></div>
+      <div class="kpi"><div class="kv">${proyectos.size}</div><div class="kl">Proyectos distintos</div></div>
+      <div class="kpi"><div class="kv">${adminState.rechazadas.length}</div><div class="kl">Filas descartadas</div></div>
+    `;
+
+    const rechBox = document.getElementById('preview-rechazadas');
+    if (adminState.rechazadas.length > 0){
+      rechBox.innerHTML = `<div class="alert-box">${adminState.rechazadas.length} filas no coincidieron con el patrón de proyecto y se descartaron (ej: "${adminState.rechazadas[0].proyecto}" en hoja "${adminState.rechazadas[0].hoja}"). Revisá el patrón regex arriba si esperabas más filas.</div>`;
+    } else {
+      rechBox.innerHTML = '';
+    }
+
+    const head = document.querySelector('#preview-table thead');
+    const body = document.querySelector('#preview-table tbody');
+    head.innerHTML = `<tr><th>Proyecto</th><th>MATID</th><th>Línea</th><th>Surcos</th><th>Evento</th><th>FS</th></tr>`;
+    body.innerHTML = filas.slice(0, 15).map(f => `
+      <tr><td class="mono">${f.proyecto_codigo}</td><td class="mono">${f.matid||'—'}</td><td>${f.linea||'—'}</td><td>${f.surcos??'—'}</td><td>${f.evento||'—'}</td><td>${f.es_usa?'USA':f.fs_numero}</td></tr>
+    `).join('');
+
+    document.getElementById('card-preview').classList.remove('hidden');
+    document.getElementById('import-log').classList.add('hidden');
+  }
+
+  function log(msg){
+    const box = document.getElementById('import-log');
+    box.classList.remove('hidden');
+    box.textContent += msg + '\n';
+    box.scrollTop = box.scrollHeight;
+  }
+
+  async function confirmarImportacion(){
+    const filas = adminState.familiasParaImportar;
+    if (filas.length === 0){ showToast('No hay filas para importar'); return; }
+    document.getElementById('import-log').textContent = '';
+    log(`Iniciando importación de campaña ${adminState.campanaCodigo}...`);
+
+    const codigos = [...new Set(filas.map(f => f.proyecto_codigo))];
+
+    const CHUNK = 400;
+    for (let i = 0; i < filas.length; i += CHUNK){
+      const lote = filas.slice(i, i + CHUNK);
+      const { error } = await sb.from('lm_familias_planificadas').insert(lote);
+      if (error){ log(`ERROR insertando familias (lote ${i}): ${error.message}`); return; }
+      log(`Familias insertadas: ${Math.min(i+CHUNK, filas.length)} / ${filas.length}`);
+    }
+
+    const porProyecto = {};
+    for (const f of filas){
+      if (!porProyecto[f.proyecto_codigo]) porProyecto[f.proyecto_codigo] = { lineas:{}, eventos:{}, n:0, fs_numero:f.fs_numero, es_usa:f.es_usa };
+      const p = porProyecto[f.proyecto_codigo];
+      p.n++;
+      if (f.linea) p.lineas[f.linea] = (p.lineas[f.linea]||0) + 1;
+      if (f.evento) p.eventos[f.evento] = (p.eventos[f.evento]||0) + 1;
+    }
+    const masComun = obj => Object.entries(obj).sort((a,b)=>b[1]-a[1])[0]?.[0] || null;
+
+    const proyectosRows = Object.entries(porProyecto).map(([codigo, p]) => ({
+      proyecto: codigo,
+      campana: adminState.campanaCodigo,
+      nombre_linea: masComun(p.lineas) || 'SIN LINEA',
+      evento: masComun(p.eventos),
+      n_familia_proyecto: p.n,
+      fs_numero: p.fs_numero,
+      es_usa: p.es_usa,
+    }));
+
+    log(`Actualizando ${proyectosRows.length} proyectos...`);
+    for (let i = 0; i < proyectosRows.length; i += 200){
+      const lote = proyectosRows.slice(i, i + 200);
+      const { error } = await sb.from('lm_proyectos').upsert(lote, { onConflict: 'proyecto' });
+      if (error){ log(`ERROR upsert proyectos: ${error.message}`); return; }
+    }
+
+    log('Vinculando familias con sus proyectos...');
+    const { data: proyectosDb, error: errProy } = await sb.from('lm_proyectos').select('id, proyecto').in('proyecto', codigos);
+    if (errProy){ log(`ERROR leyendo proyectos: ${errProy.message}`); return; }
+    for (const p of proyectosDb){
+      const { error } = await sb.from('lm_familias_planificadas').update({ proyecto_id: p.id }).eq('proyecto_codigo', p.proyecto).is('proyecto_id', null);
+      if (error) log(`Aviso: no se pudo vincular ${p.proyecto}: ${error.message}`);
+    }
+
+    log('✔ Importación completa.');
+    showToast('Campaña importada');
+  }
+
+  // ======== ACTIVAR CAMPAÑA ========
+  async function cargarCampanas(){
+    const box = document.getElementById('campanas-list');
+    box.innerHTML = `<div style="color:var(--soil-500); font-size:12.5px;">Cargando…</div>`;
+    const { data, error } = await sb.from('lm_campanas').select('*').order('codigo', { ascending:false });
+    if (error){ box.innerHTML = `<div class="alert-box">Error: ${error.message}</div>`; return; }
+    if (!data || data.length === 0){ box.innerHTML = `<div style="color:var(--soil-500); font-size:12.5px;">No hay campañas cargadas todavía.</div>`; return; }
+
+    box.innerHTML = data.map(c => `
+      <div class="campana-row ${c.activa_para_carga ? 'activa' : ''}">
+        <div><div class="cname">${c.nombre || c.codigo}</div><div class="ccode">${c.codigo}</div></div>
+        ${c.activa_para_carga
+          ? `<span class="badge-activa">ACTIVA</span>`
+          : `<button class="btn-small" onclick="activarCampana('${c.codigo}')">Activar</button>`}
+      </div>
+    `).join('');
+  }
+
+  async function activarCampana(codigo){
+    const { error: err1 } = await sb.from('lm_campanas').update({ activa_para_carga: false }).eq('activa_para_carga', true);
+    if (err1){ showToast('Error: ' + err1.message); return; }
+    const { error: err2 } = await sb.from('lm_campanas').update({ activa_para_carga: true }).eq('codigo', codigo);
+    if (err2){ showToast('Error: ' + err2.message); return; }
+    showToast('Campaña activa actualizada');
+    cargarCampanas();
+  }
+
+  async function crearCampana(){
+    const codigo = document.getElementById('nueva-campana-codigo').value.trim();
+    const nombre = document.getElementById('nueva-campana-nombre').value.trim();
+    if (!codigo){ showToast('Falta el código'); return; }
+    const { error } = await sb.from('lm_campanas').insert({ codigo, nombre: nombre || null, activa_para_carga: false });
+    if (error){ showToast('Error: ' + error.message); return; }
+    document.getElementById('nueva-campana-codigo').value = '';
+    document.getElementById('nueva-campana-nombre').value = '';
+    showToast('Campaña agregada');
+    cargarCampanas();
+  }
+
+  cargarOperariosAdmin();
+
+  // ================================================================
+  // ======== MIGRACIÓN HISTÓRICA — motor v2, corregido =============
+  // ================================================================
+  // Reescrito por completo contra evidencia real (no supuestos):
+  //  - Formatos de fecha confirmados columna por columna con estadística
+  //    (fila donde día o mes > 12 desambigua sola), no "toda la hoja igual".
+  //  - Mapeos completos contra el schema real (information_schema), no
+  //    contra descripciones de memoria.
+  //  - Aplicaciones protocolo replican la lógica ya probada del import
+  //    original de la campaña 2526: 3 slots fijos + producto normalizado
+  //    a las 3 opciones del constraint real.
+  //  - Validaciones de "fila requerida" alineadas a las columnas NOT NULL
+  //    reales de cada tabla (evita filas fantasma o insert que rompe).
+  // ================================================================
+
+  const MESES_ES = {'enero':1,'febrero':2,'marzo':3,'abril':4,'mayo':5,'junio':6,'julio':7,'agosto':8,'septiembre':9,'setiembre':9,'octubre':10,'noviembre':11,'diciembre':12};
+  const DESTINO_MAP = {'RYD':'R&D','R&D':'R&D','PBS':'PBS','SPR':'SPR','TRI':'TRI','BAS':'BAS','LABORATORIO':'Laboratorio','OTRO':'Otro'};
+  const PRODUCTOS_PROTOCOLO_HIST = ['Glifosato - Touchdown','Glufosinato - Liberty','Onduty'];
+
+  const histNorm = s => String(s??'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
+
+  function histValue(row, headers, colName){
+    const i = headers.findIndex(h => histNorm(h) === histNorm(colName));
+    if (i < 0) return null;
+    const v = row[i];
+    return (v === null || v === undefined || v === '') ? null : v;
+  }
+
+  // fmt: 'DMY' | 'MDY' | 'ESP' (texto español "diciembre 7, 2021")
+  function histDate(v, fmt){
+    if (v === null || v === undefined || v === '') return null;
+    if (typeof v === 'number' && Number.isFinite(v)){
+      const d = new Date(Date.UTC(1899,11,30) + v*86400000);
+      return d.toISOString().slice(0,10);
+    }
+    if (v instanceof Date && !isNaN(v)) return v.toISOString().slice(0,10);
+    let z = String(v).trim().replace(/\u00a0/g,' ').replace(/\s+/g,' ');
+    z = z.replace(/\s*(a\.\s*m\.|p\.\s*m\.|AM|PM).*$/i,'').trim();
+
+    if (fmt === 'ESP'){
+      const m = z.toLowerCase().match(/^([a-záéíóú]+)\s+(\d{1,2}),?\s*(\d{4})/);
+      if (!m) return null;
+      const mes = MESES_ES[m[1]];
+      if (!mes) return null;
+      try { return new Date(Date.UTC(+m[3], mes-1, +m[2])).toISOString().slice(0,10); } catch(e){ return null; }
+    }
+
+    const m = z.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if (m){
+      let a=+m[1], b=+m[2], y=+m[3], day, mon;
+      if (fmt === 'MDY'){ mon=a; day=b; } else { day=a; mon=b; } // DMY por defecto
+      try {
+        const d = new Date(Date.UTC(y, mon-1, day));
+        return (d.getUTCFullYear()===y && d.getUTCMonth()===mon-1 && d.getUTCDate()===day) ? d.toISOString().slice(0,10) : null;
+      } catch(e){ return null; }
+    }
+    const m2 = z.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (m2) return `${m2[1]}-${String(m2[2]).padStart(2,'0')}-${String(m2[3]).padStart(2,'0')}`;
+    return null;
+  }
+
+  function histNum(v){
+    if (v === null || v === undefined || v === '') return null;
+    let z = String(v).trim().replace(/\s/g,'');
+    // Formato argentino: coma decimal, punto de miles (ej: "1.127,68")
+    if (z.includes(',')) z = z.replace(/\./g,'').replace(',', '.');
+    const n = Number(z);
+    return Number.isFinite(n) ? n : null;
+  }
+  function histInt(v){ const n = histNum(v); return n === null ? null : Math.round(n); }
+  function histBool(v){
+    if (v === null || v === undefined || v === '') return null;
+    const z = String(v).trim().toLowerCase();
+    if (['si','sí','yes','true','1','ok'].includes(z)) return true;
+    if (['no','false','0'].includes(z)) return false;
+    return null;
+  }
+  function histDestino(v){
+    if (v === null || v === undefined || v === '') return null;
+    return DESTINO_MAP[String(v).trim().toUpperCase()] || null;
+  }
+  function histProyValido(p){ return !!p && /^[A-Za-z]+\d+$/.test(String(p).trim()); }
+
+  // ---- Extractores declarativos: 1 hoja -> 1 tabla, con formato de
+  // fecha explícito POR CAMPO (no por hoja entera) ----
+  const HIST_EXTRACTORS = [
+    { sheet:'LM Maiz Campo', table:'lm_siembra', campaign:'Campaña', key:'Proyecto',
+      fields:{ status:{col:'Status'}, fecha_siembra:{col:'Fecha', fmt:'DMY', date:true},
+        distancia_surcos:{col:'Distancia entre Surcos', num:true}, largo_surcos:{col:'Largo surcos', num:true},
+        cant_surcos:{col:'Cant surcos', int:true}, riego:{col:'Riego', bool:true} },
+      required: o => !!(o.status || o.fecha_siembra || o.riego !== undefined) },
+
+    { sheet:'LM Maiz Campo', table:'lm_floracion', campaign:'Campaña', key:'Proyecto',
+      fields:{ inicio:{col:'Inicio', fmt:'DMY', date:true}, floracion_50:{col:'floración 50%', fmt:'DMY', date:true},
+        fin_floracion:{col:'Fin de Floración', fmt:'DMY', date:true} },
+      required: o => Object.keys(o).length > 0 },
+
+    { sheet:'LM Maiz Campo', table:'lm_cosecha', campaign:'Campaña', key:'Proyecto',
+      fields:{ status:{col:'Status.1'}, fecha:{col:'Fecha.2', fmt:'ESP', date:true} },
+      required: o => !!(o.status || o.fecha) },
+
+    { sheet:'Campo Ctrl Humedad', table:'lm_control_humedad', campaign:'campana_ctrl_humedad', key:'proyecto_ctrl_humedad',
+      fields:{ fecha:{col:'Fecha', fmt:'MDY', date:true}, humedad:{col:'Humedad', num:true} },
+      required: o => !!o.fecha },
+
+    { sheet:'Campo Validac Fenotipicas', table:'lm_validacion_fenotipica', campaign:'campana_valid_fenot', key:'Proyecto',
+      fields:{ caracterizacion_fenotipica:{col:'Caracterización Fenotípica'}, caracteristica:{col:'Caracteristica'},
+        ide:{col:'Ide'}, detalle:{col:'Detalle'}, confirma:{col:'Confirma', bool:true}, comentario:{col:'Comentario'} },
+      required: o => Object.keys(o).length > 0 },
+
+    { sheet:'Campo Observaciones', table:'lm_observaciones_campo', campaign:'campana_obs_cult', key:'proyecto_obs_cultivo',
+      fields:{ fecha:{col:'Fecha', fmt:'MDY', date:true}, comentario:{col:'Comentario'} },
+      required: o => !!o.fecha },
+
+    { sheet:'Campo Recuentos Especiales', table:'lm_recuentos_especiales', campaign:'campana_repe_rec', key:'proyecto_repe_rec',
+      // OJO: la tabla real NO tiene columna matid ni comentario_* — no se
+      // pueden cargar aunque el Excel las traiga (se pierden, como ya
+      // se documentó esta sesión).
+      fields:{ desea_recuento:{col:'¿Desea realizar un recuento especial?', bool:true, def:true},
+        motivo:{col:'Motivo de recuento especial'},
+        cantidad_muy_afectadas:{col:'Cantidad de plantas muy afectadas', int:true},
+        cantidad_medianamente_afectadas:{col:'Cantidad de plantas medianamente afectadas', int:true},
+        cantidad_poco_afectadas:{col:'Cantidad de plantas poco afectadas', int:true} },
+      required: () => true },
+
+    { sheet:'Campo Descartes Familia', table:'lm_descartes_familia', campaign:'campana_descarte_flia', key:'proyecto',
+      fields:{ matid_descarte:{col:'Matid descarte'}, motivo:{col:'Motivo'},
+        fecha:{col:'Fecha', fmt:'MDY', date:true}, comentario:{col:'Comentario'} },
+      required: o => !!(o.matid_descarte && o.fecha) },
+
+    { sheet:'LM Maiz Planta', table:'lm_planta_proceso', campaign:'Campaña', key:'Proyecto',
+      fields:{
+        fin_desgranado:{col:'Desgranado', bool:true}, muestreado:{col:'muestreado_sino', bool:true},
+        fecha_cosecha:{col:'fecha_cosecha_pc', fmt:'DMY', date:true}, bolsas_visual:{col:'bolsas_pc', bool:true},
+        fecha_recepcion:{col:'fecha_recepcion_pc', fmt:'DMY', date:true}, cinta_visual:{col:'cinta_visual_pc', bool:true}, cinta_aire:{col:'cinta_aire_pc', bool:true},
+        fecha_secado:{col:'fecha_secado_pc', fmt:'MDY', date:true}, cubos_visual:{col:'cubos_visual_pc', bool:true},
+        fecha_desgrane:{col:'fecha_desgrane_pc', fmt:'DMY', date:true}, desgranadora_visual:{col:'desgranadora_visual_pc', bool:true}, desgranadora_aire:{col:'desgranadora_aire_pc', bool:true},
+        pre_limpieza_visual:{col:'pre_limpieza_visual_pc', bool:true}, pre_limpieza_aire:{col:'pre_limpieza_aire_pc', bool:true},
+        bandejas_visual:{col:'bandejas_pc', bool:true}, bolsa_desgrane_visual:{col:'bolsa_desgrane_visual_pc', bool:true},
+        fecha_muestreo_mesa:{col:'fecha_muestreo_pc', fmt:'DMY', date:true}, mesa_visual:{col:'mesa_muestreo_pc', bool:true},
+        fecha_embolse:{col:'fecha_embolse_pc', fmt:'DMY', date:true}, envases_embolse:{col:'envases_embolse_pc'},
+        peso_mil_semillas_gr_proyecto:{col:'peso_mil_sem_gr_proyect', num:true},
+        sumatoria_peso_seco_kg:{col:'sumatoria peso seco', num:true},
+        sumatoria_rec_espigas:{col:'sumatoria rec espigas', int:true},
+        gramos_por_espiga:{col:'gramos por espiga', num:true},
+        semillas_por_espiga:{col:'grporesp_div_pmilsem', num:true},
+      },
+      required: () => true },
+
+    { sheet:'Planta Recuentos Espigas', table:'lm_recuento_espigas', campaign:'campana_rec', key:'Proyecto',
+      fields:{ matid_cosecha:{col:'MATID Cosecha'}, matid_siembra:{col:'MATID siembra'},
+        fecha:{col:'Fecha', fmt:'MDY', date:true}, n_espigas_ok:{col:'N° Espigas ok', int:true},
+        n_espigas_descarte:{col:'N° Espigas descarte', int:true}, eliminar:{col:'Eliminar', bool:true}, comentario:{col:'Comentarios'} },
+      required: o => !!(o.fecha && o.matid_cosecha) },
+
+    { sheet:'Planta Transferencia Sem', table:'lm_transferencia_semillas', campaign:'campana_tsem', key:'proyecto_tsem',
+      fields:{ fecha_preparado:{col:'fecha_prep_tsem', fmt:'DMY', date:true}, fecha_enviado:{col:'fecha_sent_tsem', fmt:'DMY', date:true},
+        destino:{col:'destino_tsem', destino:true}, status_calidad:{col:'status_calidad_tsem'}, n_simulated:{col:'n_simulated_tsem'},
+        cantidad_kg:{col:'cant_x_simul_kg_tsem', num:true}, comentario:{col:'coment_tsem'},
+        kg_avanza:{col:'transf_kg_avanza_tsem', num:true}, kg_descarte:{col:'transf_kg_descarte_tsem', num:true} },
+      required: o => o.cantidad_kg !== undefined && o.cantidad_kg !== null },
+
+    { sheet:'Planta Resultados Calidad', table:'lm_resultados_calidad', campaign:'campana_rtdo_calidad', key:'proyecto_rtd_calidad',
+      fields:{ fecha:{col:'fecha_rtd_calidad', fmt:'DMY', date:true}, il:{col:'il_rtd_calidad'}, snp:{col:'snp_rtd_calidad'},
+        zygo:{col:'zygo_rtd_calidad'}, sqc:{col:'sqc_rtd_calidad'}, pg:{col:'pg_calidad'}, vigor:{col:'vigor_calidad'},
+        bioensayo:{col:'bioensayo_rtd_calidad'}, decision:{col:'decision_rtd_calidad'}, comentario:{col:'coment_rtd_calidad'} },
+      required: o => !!o.fecha },
+
+    { sheet:'Planta Peso Seco', table:'lm_peso_seco', campaign:'campana_ps', key:'Proyecto',
+      fields:{ matid_cosecha:{col:'MATID Cosecha'}, matid_siembra:{col:'MATID siembra'},
+        fecha:{col:'Fecha', fmt:'ESP', date:true}, peso_seco_kg:{col:'Peso seco (Kg)', num:true}, comentario:{col:'Comentarios'},
+        rtdo_calidad_il:{col:'rtdo_calidad_il'}, snp_rtdo_calidad_ps:{col:'snp_rtdo_calidad_ps'},
+        zygo_rtdo_calidad_ps:{col:'zygo_rtdo_calidad_ps'}, sqc_rtdo_calidad_ps:{col:'sqc_rtdo_calidad_ps'},
+        peso_seco_kg_avanza:{col:'peso_seco_kg_avanza_ps', num:true}, peso_seco_kg_descarte:{col:'peso_seco_kg_descarte_ps', num:true} },
+      required: o => !!(o.fecha && o.matid_cosecha) },
+
+    { sheet:'Trackeo proyectos', table:'lm_trackeo', campaign:'campana', key:'proyecto',
+      // Sin superficie_lote_ha (columna generada, no se puede insertar) y
+      // sin poligono (el Excel no exporta la geometría, solo área/perímetro).
+      fields:{ tipo_material:{col:'Tipo de material', def:'LM Maiz'}, categoria:{col:'Categoría'},
+        nombre_linea:{col:'Nombre línea'}, descripcion_evento:{col:'Descripción evento'}, grower:{col:'Grower/Cooperador'},
+        localidad:{col:'Localidad'}, fecha:{col:'Fecha y hora', fmt:'MDY', date:true, timestamptz:true},
+        hibrido:{col:'Híbrido'}, campana:{col:'campana'}, lote:{col:'lote'} },
+      required: o => !!o.fecha },
+  ];
+
+  function extraerFila(cfg, row, headers){
+    const obj = {};
+    for (const [field, def] of Object.entries(cfg.fields)){
+      let v = histValue(row, headers, def.col);
+      if (v === null && def.def !== undefined){ obj[field] = def.def; continue; }
+      if (v === null) continue;
+      if (def.date) v = histDate(v, def.fmt);
+      else if (def.num) v = histNum(v);
+      else if (def.int) v = histInt(v);
+      else if (def.bool) v = histBool(v);
+      else if (def.destino) v = histDestino(v);
+      else v = String(v).trim();
+      if (v !== null) obj[field] = v;
+    }
+    return obj;
+  }
+
+  let histState = { wb:null, sheets:{}, rows:[], summary:[] };
+
+  function histArchivo(ev){
+    const file = ev.target.files[0];
+    if (!file) return;
+    const r = new FileReader();
+    r.onload = e => {
+      try {
+        histState.wb = XLSX.read(new Uint8Array(e.target.result), { type:'array', cellDates:true });
+        histState.sheets = {};
+        histState.wb.SheetNames.forEach(n => {
+          const rows = XLSX.utils.sheet_to_json(histState.wb.Sheets[n], { header:1, raw:true, defval:null });
+          if (rows.length > 1) histState.sheets[n] = rows;
+        });
+        document.getElementById('hist-sheets').innerHTML = '<b>Hojas detectadas:</b> ' + Object.keys(histState.sheets).join(' · ');
+        showToast('Archivo leído correctamente');
+      } catch(err){ showToast('No se pudo leer el Excel: ' + err.message); }
+    };
+    r.readAsArrayBuffer(file);
+  }
+
+  // ---- Aplicaciones protocolo: 3 slots fijos, combina 2 hojas,
+  // producto normalizado a las 3 opciones reales del constraint ----
+  function normalizaProductoHist(p){
+    if (!p) return null;
+    const pl = String(p).toLowerCase();
+    if (pl.includes('touchdown') || pl.includes('glifosato')) return 'Glifosato - Touchdown';
+    if (pl.includes('liberty') || pl.includes('glufosinato')) return 'Glufosinato - Liberty';
+    if (pl.includes('onduty')) return 'Onduty';
+    return null;
+  }
+
+  function extraerAplicacionesProtocolo(camp){
+    const filas = [];
+    const h1 = histState.sheets['LM Maiz Campo Aplicac'] ? histState.sheets['LM Maiz Campo Aplicac'][0].map(x=>String(x??'')) : null;
+    const d1 = histState.sheets['LM Maiz Campo Aplicac'] ? histState.sheets['LM Maiz Campo Aplicac'].slice(1) : [];
+    const h2 = histState.sheets['LM Maiz Campo'] ? histState.sheets['LM Maiz Campo'][0].map(x=>String(x??'')) : null;
+    const d2 = histState.sheets['LM Maiz Campo'] ? histState.sheets['LM Maiz Campo'].slice(1) : [];
+
+    if (h1){
+      for (const row of d1){
+        const proyecto = histValue(row,h1,'Proyecto');
+        if (!histProyValido(proyecto)) continue;
+        const rowCamp = histValue(row,h1,'Campaña');
+        if (rowCamp !== null && String(rowCamp).trim() !== camp) continue;
+        const producto = normalizaProductoHist(histValue(row,h1,'Producto'));
+        if (!producto) continue;
+        filas.push({ proyecto:String(proyecto).trim(), data:{ n_aplicacion:1, producto,
+          dosis: histNum(histValue(row,h1,'Dosis (lt/ha - g/ha)')), fecha: histDate(histValue(row,h1,'Fecha'),'DMY') } });
+      }
+    }
+    if (h2){
+      for (const row of d2){
+        const proyecto = histValue(row,h2,'Proyecto');
+        if (!histProyValido(proyecto)) continue;
+        const rowCamp = histValue(row,h2,'Campaña');
+        if (rowCamp !== null && String(rowCamp).trim() !== camp) continue;
+        const p2 = normalizaProductoHist(histValue(row,h2,'producto_aplic_proto_2'));
+        if (p2) filas.push({ proyecto:String(proyecto).trim(), data:{ n_aplicacion:2, producto:p2,
+          dosis: histNum(histValue(row,h2,'dosis_aplic_proto_2')), fecha: histDate(histValue(row,h2,'fecha_aplic_protocolo_2'),'ESP') } });
+        const p3 = normalizaProductoHist(histValue(row,h2,'producto_aplic_proto_3'));
+        if (p3) filas.push({ proyecto:String(proyecto).trim(), data:{ n_aplicacion:3, producto:p3,
+          dosis: histNum(histValue(row,h2,'dosis_aplic_proto_3')), fecha: histDate(histValue(row,h2,'fecha_aplic_protocolo_3'),'ESP') } });
+      }
+    }
+    return filas;
+  }
+
+  // ---- Aplicaciones libres: fecha con fallback (Fecha.1 vacía casi
+  // siempre, cae a Fecha — ambas confirmadas DD/MM en esta hoja) ----
+  function extraerAplicacionesLibres(camp){
+    const filas = [];
+    const sheet = histState.sheets['LM Maiz Campo Aplicac'];
+    if (!sheet) return filas;
+    const h = sheet[0].map(x=>String(x??''));
+    for (const row of sheet.slice(1)){
+      const proyecto = histValue(row,h,'Proyecto');
+      if (!histProyValido(proyecto)) continue;
+      const rowCamp = histValue(row,h,'Campaña');
+      if (rowCamp !== null && String(rowCamp).trim() !== camp) continue;
+      const producto = histValue(row,h,'Nombre del Producto') || histValue(row,h,'Producto.1');
+      if (!producto) continue;
+      const fecha = histDate(histValue(row,h,'Fecha.1'),'DMY') || histDate(histValue(row,h,'Fecha'),'DMY');
+      if (!fecha) continue; // NOT NULL real, sin fecha no se puede insertar
+      filas.push({ proyecto:String(proyecto).trim(), data:{
+        fecha, tipo: histValue(row,h,'Tipo'), producto: String(producto).trim(),
+        dosis: histNum(histValue(row,h,'Dosis')), metodo_aplicacion: histValue(row,h,'Método de aplicación'),
+        comentario: histValue(row,h,'Comentario.1') } });
+    }
+    return filas;
+  }
+
+  function histAnalizar(){
+    const camp = String(document.getElementById('hist-campana').value).trim();
+    if (!camp){ showToast('Ingresá una campaña, por ejemplo 2425'); return; }
+    if (camp === '2526' && document.getElementById('hist-autorizacion').value.trim() !== 'AUTORIZO 2526'){
+      showToast('La campaña 2526 está protegida'); return;
+    }
+    if (!histState.wb){ showToast('Seleccioná el Excel'); return; }
+
+    histState.rows = [];
+    histState.summary = [];
+
+    // Extractores declarativos (1 hoja -> 1 tabla)
+    for (const cfg of HIST_EXTRACTORS){
+      const rows = histState.sheets[cfg.sheet];
+      if (!rows){ histState.summary.push({sheet:cfg.sheet, table:cfg.table, count:0, status:'hoja no encontrada en este archivo'}); continue; }
+      const headers = rows[0].map(x=>String(x??''));
+      let out = 0, excluded = 0;
+      for (const row of rows.slice(1)){
+        const proyecto = histValue(row, headers, cfg.key);
+        if (!histProyValido(proyecto)) continue;
+        if (cfg.campaign){
+          const rowCamp = histValue(row, headers, cfg.campaign);
+          if (rowCamp !== null && String(rowCamp).trim() !== camp){ excluded++; continue; }
+        }
+        const obj = extraerFila(cfg, row, headers);
+        if (!cfg.required(obj)){ excluded++; continue; }
+        histState.rows.push({ table:cfg.table, proyecto:String(proyecto).trim(), data:obj });
+        out++;
+      }
+      histState.summary.push({ sheet:cfg.sheet, table:cfg.table, count:out, status:`listo; ${excluded} excluidos (otra campaña o faltan campos obligatorios)` });
+    }
+
+    // Extractores especiales (combinan hojas / lógica propia)
+    const protocolo = extraerAplicacionesProtocolo(camp);
+    protocolo.forEach(x => histState.rows.push({ table:'lm_aplicaciones_protocolo', ...x }));
+    histState.summary.push({ sheet:'LM Maiz Campo Aplicac + LM Maiz Campo', table:'lm_aplicaciones_protocolo', count:protocolo.length, status:'3 slots fijos, producto normalizado' });
+
+    const libres = extraerAplicacionesLibres(camp);
+    libres.forEach(x => histState.rows.push({ table:'lm_aplicaciones_libres', ...x }));
+    histState.summary.push({ sheet:'LM Maiz Campo Aplicac', table:'lm_aplicaciones_libres', count:libres.length, status:'fecha con fallback' });
+
+    const total = histState.rows.length, tables = new Set(histState.rows.map(x=>x.table)).size;
+    document.getElementById('hist-kpis').innerHTML =
+      `<div class="kpi"><div class="kv">${total}</div><div class="kl">Registros válidos</div></div>` +
+      `<div class="kpi"><div class="kv">${tables}</div><div class="kl">Tablas destino</div></div>` +
+      `<div class="kpi"><div class="kv">${Object.keys(histState.sheets).length}</div><div class="kl">Hojas leídas</div></div>`;
+    document.getElementById('hist-detail').innerHTML = '<table><thead><tr><th>Hoja</th><th>Tabla destino</th><th>Registros</th><th>Estado</th></tr></thead><tbody>' +
+      histState.summary.map(x => `<tr><td>${x.sheet}</td><td>${x.table}</td><td>${x.count}</td><td>${x.status}</td></tr>`).join('') + '</tbody></table>';
+    document.getElementById('hist-preview').classList.remove('hidden');
+  }
+
+  function histLog(m){
+    const b = document.getElementById('hist-log');
+    b.classList.remove('hidden');
+    b.textContent += m + '\n';
+    b.scrollTop = b.scrollHeight;
+  }
+
+  async function histConfirmar(){
+    if (!histState.rows.length){ showToast('No hay registros válidos'); return; }
+    const camp = String(document.getElementById('hist-campana').value).trim();
+    const codigos = [...new Set(histState.rows.map(x => x.proyecto))];
+    document.getElementById('hist-log').textContent = '';
+    histLog('Buscando proyectos y vinculando proyecto_id...');
+
+    const { data:proys, error } = await sb.from('lm_proyectos').select('id,proyecto').in('proyecto', codigos);
+    if (error){ histLog('ERROR proyectos: ' + error.message); showToast('Migración detenida'); return; }
+    const map = new Map((proys||[]).map(x => [String(x.proyecto).trim(), x.id]));
+    let omit=0, ok=0, fail=0;
+    const grouped = {};
+    for (const x of histState.rows){
+      const id = map.get(x.proyecto);
+      if (!id){ omit++; continue; }
+      x.data.proyecto_id = id;
+      grouped[x.table] ??= [];
+      grouped[x.table].push(x.data);
+    }
+    let goodTables = 0;
+    for (const [table, rows] of Object.entries(grouped)){
+      let tableOk = true, msg = '';
+      for (let i=0; i<rows.length; i+=250){
+        const { error } = await sb.from(table).insert(rows.slice(i, i+250));
+        if (error){ tableOk = false; msg = error.message; break; }
+      }
+      if (tableOk){ ok += rows.length; goodTables++; histLog(`OK ${table}: ${rows.length} registros`); }
+      else { fail += rows.length; histLog(`ERROR ${table}: NO se confirmó ninguna fila de esta tabla. ${msg}`); }
+    }
+    histLog(`Proceso terminado. Tablas correctas: ${goodTables}. Filas insertadas: ${ok}. Filas con error: ${fail}. Omitidos por proyecto no encontrado: ${omit}. Campaña: ${camp}.`);
+    showToast(fail ? 'Migración con errores; revisar log' : 'Migración finalizada correctamente');
+  }
+
+</script>
+</body>
+</html>
