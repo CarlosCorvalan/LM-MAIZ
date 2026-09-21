@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>LM Maíz — Ficha</title>
+<link rel="icon" href="icon-192.png">
+<meta name="theme-color" content="#1f5c33">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --paper-100:#ffffff; --paper-200:#eef1ec;
+    --soil-900:#1c2419; --soil-700:#4a4331; --soil-500:#6b7268;
+    --grain-500:#2e7d46; --grain-600:#1f5c33; --grain-100:#e6f5ea;
+    --sky-500:#2f6fa0; --sky-600:#1f5578; --sky-100:#e5f0f8;
+    --alert-500:#c05a35; --alert-100:#f7e2d7;
+    --line:#e3e6df;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    background:var(--paper-200); color:var(--soil-900);
+    font-family:'Inter',sans-serif; min-height:100vh; min-height:100dvh;
+  }
+  .wrap{ max-width:480px; margin:0 auto; min-height:100vh; min-height:100dvh; background:var(--paper-100); }
+  header{
+    background:linear-gradient(135deg,#1a4d2c,#2e7d46); color:#fff;
+    padding:22px 20px 26px; border-radius:0 0 22px 22px;
+  }
+  header .brand{ font-family:'Space Grotesk'; font-size:13px; font-weight:700; opacity:0.85; margin-bottom:10px; }
+  header .proyecto{ font-family:'JetBrains Mono'; font-size:24px; font-weight:700; }
+  header .linea{ font-size:13px; opacity:0.85; margin-top:2px; }
+  header .matid{ margin-top:14px; background:rgba(255,255,255,0.15); border-radius:10px; padding:10px 14px; font-family:'JetBrains Mono'; font-size:14px; font-weight:700; display:inline-block; }
+  .status-pill{ display:inline-block; padding:3px 10px; border-radius:20px; font-size:11px; font-weight:600; margin-top:10px; }
+  .status-sembrado{ background:rgba(255,255,255,0.2); color:#fff; }
+  .status-cosechado{ background:#fff; color:var(--grain-600); }
+  .alert-banner{ background:var(--alert-100); color:var(--alert-500); border-radius:12px; padding:14px 16px; margin:16px 20px 0; font-size:13.5px; font-weight:600; }
+  main{ padding:20px; display:flex; flex-direction:column; gap:14px; }
+  .card{ background:#fff; border:1.5px solid var(--line); border-radius:14px; padding:16px; }
+  .card h2{ font-family:'Space Grotesk'; font-size:13.5px; font-weight:700; margin-bottom:12px; display:flex; align-items:center; gap:8px; }
+  .card h2::before{ content:''; width:4px; height:14px; background:var(--grain-500); border-radius:2px; }
+  .card.sky h2::before{ background:var(--sky-500); }
+  .kpis{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .kpi{ background:var(--paper-200); border-radius:10px; padding:10px 12px; }
+  .kpi-label{ font-size:10px; text-transform:uppercase; letter-spacing:0.04em; color:var(--soil-500); font-weight:700; }
+  .kpi-value{ font-family:'JetBrains Mono'; font-size:18px; font-weight:700; margin-top:2px; }
+  .row{ display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--line); font-size:13px; }
+  .row:last-child{ border-bottom:none; }
+  .row .rl{ color:var(--soil-500); }
+  .row .rv{ font-weight:600; font-family:'JetBrains Mono'; text-align:right; }
+  .empty{ color:var(--soil-500); font-size:12.5px; text-align:center; padding:10px 0; }
+  .loading{ text-align:center; color:var(--soil-500); font-size:13px; padding:60px 20px; }
+  footer{ text-align:center; color:var(--soil-500); font-size:11px; padding:20px; }
+</style>
+</head>
+<body>
+<div class="wrap" id="wrap">
+  <div class="loading" id="loading">Cargando ficha…</div>
+</div>
+
+<script>
+  const SUPABASE_URL = "https://aljgksevggwtfndqxoiy.supabase.co";
+  const SUPABASE_KEY = "sb_publishable_IEGX-ej9_w-tksybzT2Vfw_riE98P7m";
+  const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  function fechaLegible(iso){
+    if (!iso) return '—';
+    const [y,m,d] = iso.slice(0,10).split('-');
+    return `${d}/${m}/${y}`;
+  }
+  function statusClass(status){
+    if (status === 'Sembrado') return 'status-sembrado';
+    if (status === 'Cosechado') return 'status-cosechado';
+    return 'status-sembrado';
+  }
+
+  async function cargarFicha(){
+    const params = new URLSearchParams(location.search);
+    const codigoProyecto = params.get('p');
+    const matid = params.get('m');
+    const wrap = document.getElementById('wrap');
+
+    if (!codigoProyecto){
+      wrap.innerHTML = `<div class="loading">Falta el código de proyecto en el link.</div>`;
+      return;
+    }
+
+    const { data: proyecto, error: errProy } = await sb
+      .from('lm_proyectos')
+      .select('id, proyecto, nombre_linea, status, categoria, campana')
+      .eq('proyecto', codigoProyecto)
+      .maybeSingle();
+
+    if (errProy || !proyecto){
+      wrap.innerHTML = `<div class="loading">No se encontró el proyecto "${codigoProyecto}".</div>`;
+      return;
+    }
+
+    const pid = proyecto.id;
+    const [
+      { data: siembra }, { data: floracion }, { data: cosecha },
+      { data: aplicProtocolo }, { data: aplicLibres },
+      { data: humedad }, { data: lluvia }, { data: observaciones },
+      { data: descarte }, { data: recFeno }, { data: recEsp }, { data: lecturas },
+    ] = await Promise.all([
+      sb.from('lm_siembra').select('*').eq('proyecto_id', pid).maybeSingle(),
+      sb.from('lm_floracion').select('*').eq('proyecto_id', pid).maybeSingle(),
+      sb.from('lm_cosecha').select('*').eq('proyecto_id', pid).maybeSingle(),
+      sb.from('lm_aplicaciones_protocolo').select('*').eq('proyecto_id', pid).order('n_aplicacion'),
+      sb.from('lm_aplicaciones_libres').select('*').eq('proyecto_id', pid).order('fecha', { ascending:false }),
+      sb.from('lm_control_humedad').select('*').eq('proyecto_id', pid).order('fecha', { ascending:false }).limit(5),
+      sb.from('lm_lluvias_riego').select('*').eq('proyecto_id', pid).order('fecha_evento', { ascending:false }).limit(5),
+      sb.from('lm_observaciones_campo').select('*').eq('proyecto_id', pid).order('fecha', { ascending:false }).limit(5),
+      matid ? sb.from('lm_descartes_familia').select('*').eq('proyecto_id', pid).eq('matid_descarte', matid).maybeSingle() : Promise.resolve({data:null}),
+      matid ? sb.from('lm_recuentos_fenologia').select('*').eq('proyecto_id', pid).eq('matid', matid).order('fecha', { ascending:false }) : Promise.resolve({data:[]}),
+      matid ? sb.from('lm_recuentos_especiales').select('*').eq('proyecto_id', pid).eq('matid', matid) : Promise.resolve({data:[]}),
+      matid ? sb.from('lm_lecturas_protocolo').select('*').eq('proyecto_id', pid).eq('matid', matid).order('fecha', { ascending:false }) : Promise.resolve({data:[]}),
+    ]);
+
+    let html = `
+      <header>
+        <div class="brand">🌽 LM Maíz</div>
+        <div class="proyecto">${proyecto.proyecto}</div>
+        <div class="linea">${proyecto.nombre_linea || 's/línea'} · Campaña ${proyecto.campana || '—'}</div>
+        ${matid ? `<div class="matid">MATID: ${matid}</div>` : ''}
+        <div><span class="status-pill ${statusClass(proyecto.status)}">${proyecto.status || 'Sin status'}</span></div>
+      </header>
+    `;
+
+    if (descarte){
+      html += `<div class="alert-banner">⚠️ Esta familia fue descartada — ${descarte.motivo || 'sin motivo registrado'} (${fechaLegible(descarte.fecha)})${descarte.comentario ? ': ' + descarte.comentario : ''}</div>`;
+    }
+
+    html += `<main>`;
+
+    // ---- Fechas clave del proyecto ----
+    html += `<div class="card"><h2>Fechas clave</h2>
+      <div class="row"><span class="rl">Siembra</span><span class="rv">${siembra && siembra.fecha_siembra ? fechaLegible(siembra.fecha_siembra) : '—'}</span></div>
+      <div class="row"><span class="rl">Floración 50%</span><span class="rv">${floracion && floracion.floracion_50 ? fechaLegible(floracion.floracion_50) : '—'}</span></div>
+      <div class="row"><span class="rl">Cosecha</span><span class="rv">${cosecha && cosecha.fecha ? fechaLegible(cosecha.fecha) : '—'}</span></div>
+    </div>`;
+
+    // ---- Recuentos de fenología (cantidad de plantas) del MATID ----
+    if (matid){
+      if (recFeno && recFeno.length > 0){
+        const ultimo = recFeno[0];
+        html += `<div class="card"><h2>Cantidad de plantas — MATID</h2>
+          <div class="kpis">
+            <div class="kpi"><div class="kpi-label">V2V3</div><div class="kpi-value">${ultimo.v2v3 ?? '—'}</div></div>
+            <div class="kpi"><div class="kpi-label">Pre floración</div><div class="kpi-value">${ultimo.pre_floracion ?? '—'}</div></div>
+            <div class="kpi"><div class="kpi-label">Polinizadas</div><div class="kpi-value">${ultimo.plantas_polinizadas ?? '—'}</div></div>
+            <div class="kpi"><div class="kpi-label">Pre cosecha</div><div class="kpi-value">${ultimo.plantas_pre_cosecha ?? '—'}</div></div>
+          </div>
+          <div class="empty" style="margin-top:8px;">Último recuento: ${fechaLegible(ultimo.fecha)}${recFeno.length > 1 ? ` · ${recFeno.length} recuentos en total` : ''}</div>
+        </div>`;
+      } else {
+        html += `<div class="card"><h2>Cantidad de plantas — MATID</h2><div class="empty">Sin recuentos de fenología registrados para este MATID.</div></div>`;
+      }
+
+      // ---- Recuentos especiales ----
+      html += `<div class="card"><h2>Recuentos especiales</h2>`;
+      if (recEsp && recEsp.length > 0){
+        recEsp.forEach(r => {
+          html += `<div class="row"><span class="rl">${r.motivo || 'Sin motivo'}</span><span class="rv">Muy ${r.cantidad_muy_afectadas??0} · Media ${r.cantidad_medianamente_afectadas??0} · Poco ${r.cantidad_poco_afectadas??0}</span></div>`;
+        });
+      } else {
+        html += `<div class="empty">Sin recuentos especiales para este MATID.</div>`;
+      }
+      html += `</div>`;
+
+      // ---- Lecturas de protocolo (fitotoxicidad) ----
+      if (lecturas && lecturas.length > 0){
+        html += `<div class="card"><h2>Lectura de aplicación de Protocolo</h2>`;
+        lecturas.forEach(l => {
+          html += `<div class="row"><span class="rl">${fechaLegible(l.fecha)}</span><span class="rv">0×${l.cantidad_0??0} 1×${l.cantidad_1??0} 2×${l.cantidad_2??0} 3×${l.cantidad_3??0} 4×${l.cantidad_4??0} 5×${l.cantidad_5??0}</span></div>`;
+        });
+        html += `</div>`;
+      }
+    }
+
+    // ---- Aplicaciones de Protocolo (a nivel de todo el proyecto) ----
+    html += `<div class="card sky"><h2>Aplicaciones de Protocolo (proyecto)</h2>`;
+    if (aplicProtocolo && aplicProtocolo.length > 0){
+      aplicProtocolo.forEach(a => {
+        html += `<div class="row"><span class="rl">Aplic. ${a.n_aplicacion} — ${a.producto || '—'}</span><span class="rv">${a.dosis ?? '—'} · ${fechaLegible(a.fecha)}</span></div>`;
+      });
+    } else {
+      html += `<div class="empty">Sin aplicaciones de protocolo cargadas.</div>`;
+    }
+    html += `</div>`;
+
+    // ---- Protección de cultivos (aplicaciones libres) ----
+    html += `<div class="card sky"><h2>Protección de Cultivos (proyecto)</h2>`;
+    if (aplicLibres && aplicLibres.length > 0){
+      aplicLibres.forEach(a => {
+        html += `<div class="row"><span class="rl">${a.tipo || '—'} — ${a.producto || '—'}</span><span class="rv">${fechaLegible(a.fecha)}</span></div>`;
+      });
+    } else {
+      html += `<div class="empty">Sin aplicaciones libres cargadas.</div>`;
+    }
+    html += `</div>`;
+
+    // ---- Control de humedad ----
+    html += `<div class="card"><h2>Control de Humedad (proyecto)</h2>`;
+    if (humedad && humedad.length > 0){
+      humedad.forEach(h => {
+        html += `<div class="row"><span class="rl">${fechaLegible(h.fecha)}</span><span class="rv">${h.humedad ?? '—'}%</span></div>`;
+      });
+    } else {
+      html += `<div class="empty">Sin lecturas de humedad cargadas.</div>`;
+    }
+    html += `</div>`;
+
+    // ---- Lluvia / Riego ----
+    html += `<div class="card"><h2>Lluvia / Riego (proyecto)</h2>`;
+    if (lluvia && lluvia.length > 0){
+      lluvia.forEach(l => {
+        html += `<div class="row"><span class="rl">${l.tipo_evento || '—'}</span><span class="rv">${l.mm ?? '—'} mm · ${fechaLegible(l.fecha_evento)}</span></div>`;
+      });
+    } else {
+      html += `<div class="empty">Sin eventos de lluvia/riego cargados.</div>`;
+    }
+    html += `</div>`;
+
+    // ---- Observaciones ----
+    if (observaciones && observaciones.length > 0){
+      html += `<div class="card"><h2>Observaciones de campo (proyecto)</h2>`;
+      observaciones.forEach(o => {
+        html += `<div class="row"><span class="rl">${(o.comentario || 'Sin comentario').slice(0,60)}</span><span class="rv">${fechaLegible(o.fecha)}</span></div>`;
+      });
+      html += `</div>`;
+    }
+
+    html += `</main><footer>LM Maíz · ficha pública, solo lectura</footer>`;
+
+    wrap.innerHTML = html;
+  }
+
+  cargarFicha();
+</script>
+</body>
+</html>
