@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>LM Maíz — Ficha</title>
+<link rel="icon" href="icon-192.png">
+<meta name="theme-color" content="#1f5c33">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  :root{
+    --paper-100:#ffffff; --paper-200:#eef1ec;
+    --soil-900:#1c2419; --soil-700:#4a4331; --soil-500:#6b7268;
+    --grain-500:#2e7d46; --grain-600:#1f5c33; --grain-100:#e6f5ea;
+    --sky-500:#2f6fa0; --sky-600:#1f5578; --sky-100:#e5f0f8;
+    --alert-500:#c05a35; --alert-100:#f7e2d7;
+    --line:#e3e6df;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    background:var(--paper-200); color:var(--soil-900);
+    font-family:'Inter',sans-serif; min-height:100vh; min-height:100dvh;
+  }
+  .wrap{ max-width:480px; margin:0 auto; min-height:100vh; min-height:100dvh; background:var(--paper-100); }
+  header{
+    background:linear-gradient(135deg,#1a4d2c,#2e7d46); color:#fff;
+    padding:22px 20px 26px; border-radius:0 0 22px 22px;
+  }
+  header .brand{ font-family:'Space Grotesk'; font-size:13px; font-weight:700; opacity:0.85; margin-bottom:10px; }
+  header .proyecto{ font-family:'JetBrains Mono'; font-size:24px; font-weight:700; }
+  header .linea{ font-size:13px; opacity:0.85; margin-top:2px; }
+  header .matid{ margin-top:14px; background:rgba(255,255,255,0.15); border-radius:10px; padding:10px 14px; font-family:'JetBrains Mono'; font-size:14px; font-weight:700; display:inline-block; }
+  .status-pill{ display:inline-block; padding:3px 10px; border-radius:20px; font-size:11px; font-weight:600; margin-top:10px; }
+  .status-sembrado{ background:rgba(255,255,255,0.2); color:#fff; }
+  .status-cosechado{ background:#fff; color:var(--grain-600); }
+  .alert-banner{ background:var(--alert-100); color:var(--alert-500); border-radius:12px; padding:14px 16px; margin:16px 20px 0; font-size:13.5px; font-weight:600; }
+  main{ padding:20px; display:flex; flex-direction:column; gap:14px; }
+  .card{ background:#fff; border:1.5px solid var(--line); border-radius:14px; padding:16px; }
+  .card h2{ font-family:'Space Grotesk'; font-size:13.5px; font-weight:700; margin-bottom:12px; display:flex; align-items:center; gap:8px; }
+  .card h2::before{ content:''; width:4px; height:14px; background:var(--grain-500); border-radius:2px; }
+  .card.sky h2::before{ background:var(--sky-500); }
+  .kpis{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .kpi{ background:var(--paper-200); border-radius:10px; padding:10px 12px; }
+  .kpi-label{ font-size:10px; text-transform:uppercase; letter-spacing:0.04em; color:var(--soil-500); font-weight:700; }
+  .kpi-value{ font-family:'JetBrains Mono'; font-size:18px; font-weight:700; margin-top:2px; }
+  .row{ display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--line); font-size:13px; }
+  .row:last-child{ border-bottom:none; }
+  .row .rl{ color:var(--soil-500); }
+  .row .rv{ font-weight:600; font-family:'JetBrains Mono'; text-align:right; }
+  .empty{ color:var(--soil-500); font-size:12.5px; text-align:center; padding:10px 0; }
+  .loading{ text-align:center; color:var(--soil-500); font-size:13px; padding:60px 20px; }
+  .share{ display:flex; gap:8px; padding:14px 20px 0; }
+  .share button{ flex:1; border:none; border-radius:12px; padding:12px 4px; font-weight:700; font-size:12.5px; font-family:inherit; cursor:pointer; }
+  .share .s-wsp{ background:#25d366; color:#fff; } .share .s-mail{ background:var(--sky-500); color:#fff; }
+  .share .s-pdf{ background:var(--paper-200); color:var(--soil-900); border:1px solid #d8dcd3; }
+  .share button:disabled{ opacity:.6; }
+  .pbar{ display:flex; height:26px; border-radius:8px; overflow:hidden; margin:8px 0; background:var(--paper-200); }
+  .pbar div{ display:flex; align-items:center; justify-content:center; color:#fff; font-size:11px; font-weight:700; }
+  .pleg{ display:flex; flex-wrap:wrap; gap:6px 14px; font-size:11.5px; color:var(--soil-700); }
+  .pleg i{ display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:5px; }
+  .fgrid{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .fgrid .f{ position:relative; border-radius:10px; overflow:hidden; background:var(--paper-200); cursor:zoom-in; display:flex; align-items:center; justify-content:center; min-height:70px; }
+  .fgrid .f img{ width:100%; height:auto; max-height:240px; object-fit:contain; display:block; }
+  .fgrid .f span{ position:absolute; left:0; right:0; bottom:0; padding:14px 7px 5px; font-size:10px; font-weight:700; color:#fff; background:linear-gradient(transparent,rgba(0,0,0,.65)); }
+  #lb{ position:fixed; inset:0; z-index:10000; background:rgba(8,14,11,.93); display:none; flex-direction:column; align-items:center; justify-content:center; padding:16px; }
+  #lb.open{ display:flex; }
+  #lb img{ max-width:96vw; max-height:76vh; border-radius:12px; object-fit:contain; }
+  #lb .cap{ color:#e9f1ec; font-size:13px; margin-top:10px; text-align:center; }
+  #lb .bar2{ display:flex; gap:10px; margin-top:12px; }
+  #lb .bar2 button, #lb .bar2 a{ background:rgba(255,255,255,.14); color:#fff; border:1px solid rgba(255,255,255,.3); border-radius:99px; padding:9px 18px; font-size:13px; font-weight:600; cursor:pointer; text-decoration:none; font-family:inherit; }
+  #lb .x{ position:absolute; top:12px; right:18px; font-size:32px; color:#fff; cursor:pointer; line-height:1; }
+  #lb .nv{ position:absolute; top:50%; transform:translateY(-50%); font-size:40px; color:#fff; cursor:pointer; padding:8px 12px; user-select:none; }
+  /* ---- Lluvia / riego ---- */
+  .lk{ display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:12px; }
+  .lk div{ border-radius:12px; padding:9px 11px; }
+  .lk small{ display:block; font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; opacity:.85; }
+  .lk b{ font-family:'JetBrains Mono'; font-size:18px; }
+  .lk .k-ll{ background:#e3f4fd; color:#0b6e9d; } .lk .k-ri{ background:#e1e9fb; color:#1c4fb0; } .lk .k-ac{ background:linear-gradient(135deg,#1a4d2c,#2e7d46); color:#fff; }
+  .lchart{ position:relative; display:flex; align-items:flex-end; justify-content:space-around; height:150px; padding:0 2px; border-bottom:1.5px dashed #c9d0c4;
+    background:repeating-linear-gradient(to top, transparent 0, transparent 36px, #eef1ec 36px, #eef1ec 37px); }
+  .lcol{ flex:1; max-width:46px; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%; }
+  .lcol .v{ font-size:10px; font-weight:700; margin-bottom:3px; font-family:'JetBrains Mono'; }
+  .lcol .b{ width:62%; min-width:12px; border-radius:7px 7px 2px 2px; }
+  .lb-ll{ background:linear-gradient(to top,#4fc3f7,#9be0ff); } .lb-ri{ background:linear-gradient(to top,#1d4fb8,#4d83e6); }
+  .lfechas{ display:flex; justify-content:space-around; padding:5px 2px 0; }
+  .lfechas span{ flex:1; max-width:46px; text-align:center; font-size:9px; color:var(--soil-500); font-weight:600; }
+  .lleg{ display:flex; gap:14px; font-size:11px; color:var(--soil-700); margin-top:8px; }
+  .lleg i{ display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:5px; }
+  /* ---- Observaciones ---- */
+  .obs-list{ display:flex; flex-direction:column; gap:10px; }
+  .obs{ background:var(--paper-200); border-radius:12px; padding:11px 12px; }
+  .obs-fecha{ font:700 11px 'JetBrains Mono'; color:var(--grain-600); margin-bottom:4px; }
+  .obs-txt{ font-size:13px; line-height:1.45; white-space:pre-wrap; }
+  .obs-foto{ margin-top:8px; border-radius:10px; overflow:hidden; cursor:zoom-in; background:#e3e6df; }
+  .obs-foto img{ width:100%; height:auto; max-height:320px; object-fit:contain; display:block; }
+  /* ---- Modo PDF (A4, una sola hoja) ---- */
+  .pdfmode{ position:fixed; left:-10000px; top:0; width:794px; background:#fff; }
+  .pdfmode .wrap{ max-width:none; width:794px; min-height:0; }
+  .pdfmode header{ display:flex; flex-wrap:wrap; align-items:center; gap:4px 20px; padding:14px 24px; border-radius:0 0 16px 16px; }
+  .pdfmode header .brand{ width:100%; margin:0; }
+  .pdfmode header .proyecto{ font-size:22px; } .pdfmode header .linea{ margin:0; }
+  .pdfmode header .matid{ margin:0 0 0 auto; padding:7px 12px; }
+  .pdfmode header .status-pill{ margin:0; }
+  .pdfmode .alert-banner{ margin:10px 16px 0; padding:9px 12px; font-size:12px; }
+  .pdfmode main{ display:grid; grid-template-columns:1fr 1fr; gap:10px; padding:12px 16px; align-items:start; }
+  .pdfmode .card{ padding:11px 13px; } .pdfmode .card h2{ margin-bottom:8px; }
+  .pdfmode .card.full{ grid-column:1 / -1; }
+  .pdfmode .card.vacia, .pdfmode .noprint{ display:none !important; }
+  .pdfmode .obs-list{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .pdfmode .obs-foto img{ max-height:170px; }
+  .pdfmode .card.fotosre{ grid-column:auto; } .pdfmode .fgrid .f img{ max-height:130px; }
+  .pdfmode .lchart{ height:125px; } .pdfmode .kpis{ gap:6px; } .pdfmode .kpi{ padding:7px 10px; }
+  .pdfmode footer{ padding:6px 0 10px; }
+  /* ---- Resumen de la linea ---- */
+  .lh{ border-radius:18px; padding:16px; background:radial-gradient(120% 90% at 90% 0%,#fff1de 0%,#eaf6ee 45%,#e3f1f6 100%); border:1.5px solid #dbe8dd; }
+  .lh h3{ font-family:'Space Grotesk'; font-size:13.5px; display:flex; align-items:center; gap:8px; }
+  .lh h3::before{ content:''; width:4px; height:14px; background:var(--grain-500); border-radius:2px; }
+  .lh .sub{ font-size:11px; color:var(--soil-500); margin:2px 0 0 12px; }
+  .lh .top{ display:flex; align-items:center; gap:16px; margin-top:12px; }
+  .lh .ring{ position:relative; width:96px; height:96px; flex-shrink:0; }
+  .lh .ring svg{ width:96px; height:96px; transform:rotate(-90deg); filter:drop-shadow(0 0 7px rgba(240,150,90,.5)); }
+  .lh .ring .c{ position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+  .lh .ring .c b{ font-family:'Space Grotesk'; font-size:22px; color:var(--soil-900); }
+  .lh .ring .c span{ font-size:9.5px; color:var(--soil-500); margin-top:-1px; }
+  .lh .kp{ display:grid; grid-template-columns:1fr 1fr; gap:8px 14px; flex:1; }
+  .lh .kp b{ display:block; font-family:'JetBrains Mono'; font-size:18px; color:var(--soil-900); }
+  .lh .kp span{ font-size:9.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--soil-500); font-weight:700; }
+  .lh .chart{ position:relative; margin-top:16px; height:96px; display:flex; align-items:flex-end; gap:2px; border-bottom:1.5px solid #dbe8dd; }
+  .lh .chart div.bb{ flex:1; border-radius:3px 3px 0 0; background:linear-gradient(to top,#b9dcc3,#6fb58a); }
+  .lh .chart div.me{ background:linear-gradient(to top,#e0763f,#f4b45e); box-shadow:0 0 12px rgba(240,150,80,.55); }
+  .lh .avg{ position:absolute; left:0; right:0; border-top:1.5px dashed #2e7d46; }
+  .lh .avg em{ position:absolute; right:0; top:-15px; font-size:9.5px; font-style:normal; color:var(--grain-600); font-weight:700; background:#f4faf5; padding:0 4px; border-radius:4px; }
+  .lh .cap{ font-size:10px; color:var(--soil-500); margin-top:5px; }
+  .lh .vs{ margin-top:12px; background:rgba(255,255,255,.75); border:1.5px solid #dbe8dd; border-radius:12px; padding:10px 12px; display:flex; justify-content:space-between; align-items:center; font-size:12px; color:var(--soil-700); }
+  .lh .vs b{ font-family:'JetBrains Mono'; font-size:15px; color:var(--alert-500); }
+  .pdfmode .lh{ grid-column:1 / -1; } .pdfmode .lh .chart{ height:70px; }
+  footer{ text-align:center; color:var(--soil-500); font-size:11px; padding:20px; }
+</style>
+</head>
+<body>
+<div class="wrap" id="wrap">
+  <div class="loading" id="loading">Cargando ficha…</div>
+</div>
+
+<script>
+  const SUPABASE_URL = "https://aljgksevggwtfndqxoiy.supabase.co";
+  const SUPABASE_KEY = "sb_publishable_IEGX-ej9_w-tksybzT2Vfw_riE98P7m";
+  const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  function fechaLegible(iso){
+    if (!iso) return '—';
+    const [y,m,d] = iso.slice(0,10).split('-');
+    return `${d}/${m}/${y}`;
+  }
+  function statusClass(status){
+    if (status === 'Sembrado') return 'status-sembrado';
+    if (status === 'Cosechado') return 'status-cosechado';
+    return 'status-sembrado';
+  }
+
+  async function cargarFicha(){
+    const params = new URLSearchParams(location.search);
+    const codigoProyecto = params.get('p');
+    const matid = params.get('m');
+    const wrap = document.getElementById('wrap');
+
+    if (!codigoProyecto){
+      wrap.innerHTML = `<div class="loading">Falta el código de proyecto en el link.</div>`;
+      return;
+    }
+
+    // Búsqueda tolerante: sin distinguir mayúsculas/minúsculas ni espacios, y
+    // sin maybeSingle() — el mismo código de proyecto (ej. ILM002) existe en
+    // varias campañas, y maybeSingle() falla si encuentra más de una fila.
+    // Si hay varias, se elige la campaña más reciente.
+    const codigoLimpio = codigoProyecto.trim();
+    const { data: proyectos, error: errProy } = await sb
+      .from('lm_proyectos')
+      .select('id, proyecto, nombre_linea, status, categoria, campana')
+      .ilike('proyecto', codigoLimpio);
+
+    if (errProy){
+      wrap.innerHTML = `<div class="loading">Error consultando el proyecto "${codigoLimpio}": ${errProy.message}</div>`;
+      return;
+    }
+    if (!proyectos || proyectos.length === 0){
+      wrap.innerHTML = `<div class="loading">No se encontró el proyecto "${codigoLimpio}".</div>`;
+      return;
+    }
+    const proyecto = [...proyectos].sort((a,b) => String(b.campana||'').localeCompare(String(a.campana||'')))[0];
+
+    const pid = proyecto.id;
+    let [
+      { data: siembra }, { data: floracion }, { data: cosecha },
+      { data: aplicProtocolo }, { data: aplicLibres },
+      { data: lluvia }, { data: observaciones },
+      { data: descarte }, { data: recFeno }, { data: recEsp }, { data: lecturas },
+      { data: feno_all }, { data: esp_all },
+    ] = await Promise.all([
+      sb.from('lm_siembra').select('*').eq('proyecto_id', pid).maybeSingle(),
+      sb.from('lm_floracion').select('*').eq('proyecto_id', pid).maybeSingle(),
+      sb.from('lm_cosecha').select('*').eq('proyecto_id', pid).maybeSingle(),
+      sb.from('lm_aplicaciones_protocolo').select('*').eq('proyecto_id', pid).order('n_aplicacion'),
+      sb.from('lm_aplicaciones_libres').select('*').eq('proyecto_id', pid).order('fecha', { ascending:false }),
+      sb.from('lm_lluvias_riego').select('*').eq('proyecto_id', pid).order('fecha_evento', { ascending:true }),
+      sb.from('lm_observaciones_campo').select('*').eq('proyecto_id', pid).order('fecha', { ascending:false }).limit(40),
+      matid ? sb.from('lm_descartes_familia').select('*').eq('proyecto_id', pid).eq('matid_descarte', matid).maybeSingle() : Promise.resolve({data:null}),
+      matid ? sb.from('lm_recuentos_fenologia').select('*').eq('proyecto_id', pid).eq('matid', matid).order('fecha', { ascending:false }) : Promise.resolve({data:[]}),
+      matid ? sb.from('lm_recuentos_especiales').select('*').eq('proyecto_id', pid).eq('matid', matid) : Promise.resolve({data:[]}),
+      matid ? sb.from('lm_lecturas_protocolo').select('*').eq('proyecto_id', pid).eq('matid', matid).order('fecha', { ascending:false }) : Promise.resolve({data:[]}),
+      sb.from('lm_recuentos_fenologia').select('matid, v2v3, pre_floracion, plantas_polinizadas, plantas_pre_cosecha, fecha').eq('proyecto_id', pid).limit(5000),
+      sb.from('lm_recuentos_especiales').select('matid, cantidad_muy_afectadas, cantidad_medianamente_afectadas, cantidad_poco_afectadas').eq('proyecto_id', pid).limit(5000),
+    ]);
+
+    fichaFotos = [];
+    let fotosREhechas = false;
+    // Observaciones cuyo comentario empieza con "Recuento especial" = fotos generales del recuento
+    const esRE = o => /^\s*recuento\s+especial/i.test(o.comentario || '');
+    const obsRE = (observaciones || []).filter(o => o.foto_url && esRE(o)).slice(0, 4);
+    observaciones = (observaciones || []).filter(o => !esRE(o)).slice(0, 5);
+    const renderFotosRE = (rec) => {
+      fotosREhechas = true;
+      const fotos = [];
+      obsRE.forEach(o => {
+        const t = String(o.comentario || '').replace(/^\s*recuento\s+especial\s*[—–:\-]*\s*/i, '').trim();
+        fotos.push({ src: o.foto_url, cap: t || 'Recuento especial' });
+      });
+      (rec || []).filter(r => r.foto_url).forEach(r => fotos.push({ src: r.foto_url, cap: r.motivo || 'Recuento especial' }));
+      if (!fotos.length) return '';
+      const idx0 = fichaFotos.length;
+      fotos.forEach(f => fichaFotos.push(f));
+      return `<div class="card full fotosre"><h2>Fotos del recuento especial <span style="margin-left:auto;font-weight:500;color:var(--soil-500);">${fotos.length}</span></h2>
+        <div class="fgrid">${fotos.map((f,i) => `<div class="f" onclick="abrirFoto(${idx0 + i})"><img src="${esc(f.src)}" crossorigin="anonymous" loading="lazy" alt="" onerror="if(!this.dataset.r){this.dataset.r=1;this.removeAttribute('crossorigin');this.src=this.src}"><span>${esc(f.cap)}</span></div>`).join('')}</div>
+        <div class="empty noprint" style="padding:8px 0 0;">Tocá una foto para ampliarla</div></div>`;
+    };
+    let html = `
+      <header>
+        <div class="brand">🌽 LM Maíz</div>
+        <div class="proyecto">${proyecto.proyecto}</div>
+        <div class="linea">${proyecto.nombre_linea || 's/línea'} · Campaña ${proyecto.campana || '—'}</div>
+        ${matid ? `<div class="matid">MATID: ${matid}</div>` : ''}
+        <div><span class="status-pill ${statusClass(proyecto.status)}">${proyecto.status || 'Sin status'}</span></div>
+      </header>
+      <div class="share noprint">
+        <button class="s-wsp" onclick="compartirFicha('wsp')">📲 WhatsApp</button>
+        <button class="s-mail" onclick="compartirFicha('mail')">✉ Mail</button>
+        <button class="s-pdf" onclick="compartirFicha('pdf')">⬇ PDF</button>
+      </div>
+    `;
+
+    if (descarte){
+      html += `<div class="alert-banner">⚠️ Esta familia fue descartada — ${descarte.motivo || 'sin motivo registrado'} (${fechaLegible(descarte.fecha)})${descarte.comentario ? ': ' + descarte.comentario : ''}</div>`;
+    }
+
+    html += `<main>`;
+
+    // ---- Fechas clave del proyecto ----
+    html += `<div class="card"><h2>Fechas clave</h2>
+      <div class="row"><span class="rl">Siembra</span><span class="rv">${siembra && siembra.fecha_siembra ? fechaLegible(siembra.fecha_siembra) : '—'}</span></div>
+      <div class="row"><span class="rl">Floración 50%</span><span class="rv">${floracion && floracion.floracion_50 ? fechaLegible(floracion.floracion_50) : '—'}</span></div>
+      <div class="row"><span class="rl">Cosecha</span><span class="rv">${cosecha && cosecha.fecha ? fechaLegible(cosecha.fecha) : '—'}</span></div>
+    </div>`;
+
+    html += resumenLinea(feno_all, esp_all, matid, proyecto.proyecto);
+
+    // ---- Recuentos de fenología (cantidad de plantas) del MATID ----
+    if (matid){
+      if (recFeno && recFeno.length > 0){
+        const ultimo = recFeno[0];
+        html += `<div class="card"><h2>Cantidad de plantas — MATID</h2>
+          <div class="kpis">
+            <div class="kpi"><div class="kpi-label">V2V3</div><div class="kpi-value">${ultimo.v2v3 ?? '—'}</div></div>
+            <div class="kpi"><div class="kpi-label">Pre floración</div><div class="kpi-value">${ultimo.pre_floracion ?? '—'}</div></div>
+            <div class="kpi"><div class="kpi-label">Polinizadas</div><div class="kpi-value">${ultimo.plantas_polinizadas ?? '—'}</div></div>
+            <div class="kpi"><div class="kpi-label">Pre cosecha</div><div class="kpi-value">${ultimo.plantas_pre_cosecha ?? '—'}</div></div>
+          </div>
+          <div class="empty" style="margin-top:8px;">Último recuento: ${fechaLegible(ultimo.fecha)}${recFeno.length > 1 ? ` · ${recFeno.length} recuentos en total` : ''}</div>
+        </div>`;
+      } else {
+        html += `<div class="card vacia"><h2>Cantidad de plantas — MATID</h2><div class="empty">Sin recuentos de fenología registrados para este MATID.</div></div>`;
+      }
+
+      // ---- Población vs problemática (%) ----
+      if (recEsp && recEsp.length > 0){
+        const base = baseDePlantas(recFeno);
+        html += `<div class="card"><h2>Población vs problemática detectada</h2>
+          <div style="font-size:12px;color:var(--soil-500);">${base ? `Plantas evaluadas: <b style="color:var(--soil-900)">${base.n}</b> (base: recuento ${base.etapa})` : 'Sin recuento de plantas del MATID: se muestran solo cantidades.'}</div>
+          ${recEsp.map(r => graficoPoblacion(r, base)).join('')}
+        </div>`;
+
+        html += renderFotosRE(recEsp);
+      }
+
+      // ---- Recuentos especiales ----
+      html += `<div class="card"><h2>Recuentos especiales</h2>`;
+      if (recEsp && recEsp.length > 0){
+        recEsp.forEach(r => {
+          html += `<div class="row"><span class="rl">${r.motivo || 'Sin motivo'}</span><span class="rv">Muy ${r.cantidad_muy_afectadas??0} · Media ${r.cantidad_medianamente_afectadas??0} · Poco ${r.cantidad_poco_afectadas??0}</span></div>`;
+        });
+      } else {
+        html += `<div class="empty">Sin recuentos especiales para este MATID.</div>`;
+      }
+      html += `</div>`;
+
+      // ---- Lecturas de protocolo (fitotoxicidad) ----
+      if (lecturas && lecturas.length > 0){
+        html += `<div class="card"><h2>Lectura de aplicación de Protocolo</h2>`;
+        lecturas.forEach(l => {
+          html += `<div class="row"><span class="rl">${fechaLegible(l.fecha)}</span><span class="rv">0×${l.cantidad_0??0} 1×${l.cantidad_1??0} 2×${l.cantidad_2??0} 3×${l.cantidad_3??0} 4×${l.cantidad_4??0} 5×${l.cantidad_5??0}</span></div>`;
+        });
+        html += `</div>`;
+      }
+    }
+
+    if (!fotosREhechas) html += renderFotosRE([]);
+
+    // ---- Aplicaciones de Protocolo (a nivel de todo el proyecto) ----
+    html += `<div class="card sky"><h2>Aplicaciones de Protocolo (proyecto)</h2>`;
+    if (aplicProtocolo && aplicProtocolo.length > 0){
+      aplicProtocolo.forEach(a => {
+        html += `<div class="row"><span class="rl">Aplic. ${a.n_aplicacion} — ${a.producto || '—'}</span><span class="rv">${a.dosis ?? '—'} · ${fechaLegible(a.fecha)}</span></div>`;
+      });
+    } else {
+      html += `<div class="empty">Sin aplicaciones de protocolo cargadas.</div>`;
+    }
+    html += `</div>`;
+
+    // ---- Protección de cultivos (aplicaciones libres) ----
+    html += `<div class="card sky"><h2>Protección de Cultivos (proyecto)</h2>`;
+    if (aplicLibres && aplicLibres.length > 0){
+      aplicLibres.forEach(a => {
+        html += `<div class="row"><span class="rl">${a.tipo || '—'} — ${a.producto || '—'}</span><span class="rv">${fechaLegible(a.fecha)}</span></div>`;
+      });
+    } else {
+      html += `<div class="empty">Sin aplicaciones libres cargadas.</div>`;
+    }
+    html += `</div>`;
+
+    // ---- Lluvia / Riego (grafico) ----
+    if (lluvia && lluvia.length > 0){
+      html += graficoLluvia(lluvia);
+    } else {
+      html += `<div class="card vacia"><h2>Lluvia / Riego</h2><div class="empty">Sin eventos de lluvia/riego cargados.</div></div>`;
+    }
+
+    // ---- Observaciones (texto completo + fotos) ----
+    if (observaciones && observaciones.length > 0){
+      html += `<div class="card full"><h2>Observaciones de campo <span style="margin-left:auto;font-weight:500;color:var(--soil-500);">${observaciones.length}</span></h2><div class="obs-list">`;
+      observaciones.forEach(o => {
+        let foto = '';
+        if (o.foto_url){
+          const idx = fichaFotos.length;
+          fichaFotos.push({ src: o.foto_url, cap: 'Observación · ' + fechaLegible(o.fecha) });
+          foto = `<div class="obs-foto" onclick="abrirFoto(${idx})"><img src="${esc(o.foto_url)}" crossorigin="anonymous" loading="lazy" alt="" onerror="if(!this.dataset.r){this.dataset.r=1;this.removeAttribute('crossorigin');this.src=this.src}"></div>`;
+        }
+        html += `<div class="obs"><div class="obs-fecha">${fechaLegible(o.fecha)}</div><div class="obs-txt">${esc(o.comentario || 'Sin comentario')}</div>${foto}</div>`;
+      });
+      html += `</div></div>`;
+    }
+
+    html += `</main><footer>LM Maíz · ficha pública, solo lectura</footer>`;
+
+    wrap.innerHTML = html;
+  }
+
+  cargarFicha();
+
+  // ===== Helpers de la ficha =====
+  const esc = t => String(t ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  let fichaFotos = [], fichaIdx = 0;
+
+  function baseDePlantas(recFeno){
+    if (!recFeno || !recFeno.length) return null;
+    const u = recFeno[0];
+    const cand = [['pre cosecha', u.plantas_pre_cosecha], ['polinizadas', u.plantas_polinizadas], ['pre floración', u.pre_floracion], ['V2V3', u.v2v3]];
+    for (const [n, v] of cand){ if (v != null && Number(v) > 0) return { n: Number(v), etapa: n }; }
+    return null;
+  }
+
+  function resumenLinea(fenoAll, espAll, matidActual, codigo){
+    if (!fenoAll || !fenoAll.length || !espAll || !espAll.length) return '';
+    // base por familia: ultimo recuento de fenologia con dato
+    const ultimo = {};
+    fenoAll.forEach(r => { if (!ultimo[r.matid] || String(r.fecha) > String(ultimo[r.matid].fecha)) ultimo[r.matid] = r; });
+    const base = {};
+    Object.entries(ultimo).forEach(([m, r]) => {
+      const n = [r.plantas_pre_cosecha, r.plantas_polinizadas, r.pre_floracion, r.v2v3].map(Number).find(v => v > 0);
+      if (n) base[m] = n;
+    });
+    const afect = {};
+    espAll.forEach(r => { afect[r.matid] = (afect[r.matid] || 0) + (Number(r.cantidad_muy_afectadas) || 0) + (Number(r.cantidad_medianamente_afectadas) || 0) + (Number(r.cantidad_poco_afectadas) || 0); });
+    const filas = Object.keys(base).map(m => ({ m, n: base[m], a: Math.min(afect[m] || 0, base[m]) }));
+    const total = filas.reduce((s, f) => s + f.n, 0);
+    const tAf = filas.reduce((s, f) => s + f.a, 0);
+    if (!total || !tAf) return '';
+    const pct = tAf / total * 100;
+    const conProb = filas.filter(f => f.a > 0).length;
+    const orden = filas.map(f => ({ ...f, p: f.a / f.n * 100 })).sort((a, b) => b.p - a.p);
+    const maxP = Math.max(...orden.map(o => o.p), 1);
+    const barras = orden.map(o => `<div class="bb${o.m === matidActual ? ' me' : ''}" style="height:${Math.max(2, o.p / maxP * 90)}px"></div>`).join('');
+    const fmt = n => n.toLocaleString('es-AR');
+    const R = 38, C = 2 * Math.PI * R;
+    const esta = orden.find(o => o.m === matidActual);
+    const vs = esta ? `<div class="vs"><span>Esta familia <b style="font-size:11px;color:var(--soil-500)">${esc(matidActual)}</b></span><span><b>${Math.round(esta.p)}%</b> vs ${Math.round(pct)}% de la línea</span></div>` : '';
+    return `<div class="lh card full"><h3>Resumen de la línea · ${esc(codigo)}</h3><div class="sub">Plantas evaluadas vs plantas afectadas · ${filas.length} familias</div>
+      <div class="top"><div class="ring"><svg viewBox="0 0 96 96"><defs><linearGradient id="gr" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f4b45e"/><stop offset="1" stop-color="#e0763f"/></linearGradient></defs>
+        <circle cx="48" cy="48" r="${R}" fill="none" stroke="rgba(120,120,160,.18)" stroke-width="10"/>
+        <circle cx="48" cy="48" r="${R}" fill="none" stroke="url(#gr)" stroke-width="10" stroke-linecap="round" stroke-dasharray="${(C * pct / 100).toFixed(1)} ${C.toFixed(1)}"/></svg>
+        <div class="c"><b>${Math.round(pct)}%</b><span>afectadas</span></div></div>
+        <div class="kp"><div><b>${fmt(total)}</b><span>Plantas totales</span></div><div><b style="color:var(--alert-500)">${fmt(tAf)}</b><span>Afectadas</span></div>
+        <div><b style="color:var(--grain-600)">${fmt(total - tAf)}</b><span>Sanas</span></div><div><b>${conProb} / ${filas.length}</b><span>Familias con problema</span></div></div></div>
+      <div class="chart">${barras}<div class="avg" style="bottom:${(pct / maxP * 90).toFixed(1)}px"><em>promedio ${Math.round(pct)}%</em></div></div>
+      <div class="cap">Familias ordenadas de mayor a menor % afectado</div>${vs}</div>`;
+  }
+
+  function graficoPoblacion(r, base){
+    const muy = Number(r.cantidad_muy_afectadas) || 0, med = Number(r.cantidad_medianamente_afectadas) || 0, poco = Number(r.cantidad_poco_afectadas) || 0;
+    const afect = muy + med + poco;
+    const titulo = `<div style="font-size:12px;font-weight:700;margin-top:10px;">${esc(r.motivo || 'Sin motivo')}</div>`;
+    if (!base){
+      return titulo + `<div class="empty" style="text-align:left;padding:4px 0;">Muy ${muy} · Media ${med} · Poco ${poco} — sin recuento de plantas para calcular %.</div>`;
+    }
+    const total = Math.max(base.n, afect);
+    const sanas = total - afect;
+    const seg = [
+      ['Sanas', sanas, '#2e7d46'], ['Poco afectadas', poco, '#e3c84a'],
+      ['Medianamente', med, '#e08a2e'], ['Muy afectadas', muy, '#c0392b'],
+    ];
+    const pct = v => (v / total * 100);
+    const barra = seg.filter(x => x[1] > 0).map(x => {
+      const w = pct(x[1]);
+      return `<div style="width:${w}%;background:${x[2]};${x[0]==='Poco afectadas' ? 'color:#4a4331;' : ''}">${w >= 9 ? Math.round(w) + '%' : ''}</div>`;
+    }).join('');
+    const leyenda = seg.map(x => `<span><i style="background:${x[2]}"></i>${x[0]} ${pct(x[1]).toFixed(1).replace('.0','')}%</span>`).join('');
+    return titulo + `<div class="pbar">${barra}</div><div class="pleg">${leyenda}</div>`;
+  }
+
+  function graficoLluvia(rows){
+    const mmDe = r => Number(r.mm) || 0;
+    const esRiego = r => /riego/i.test(r.tipo_evento || '');
+    const totLl = rows.filter(r => !esRiego(r)).reduce((a, r) => a + mmDe(r), 0);
+    const totRi = rows.filter(esRiego).reduce((a, r) => a + mmDe(r), 0);
+    const ult = rows.slice(-12);
+    const max = Math.max(...ult.map(mmDe), 1);
+    const fmt = n => (Math.round(n * 10) / 10).toString().replace('.', ',');
+    const dm = iso => { if (!iso) return '—'; const [y, m, d] = String(iso).slice(0, 10).split('-'); return `${d}/${m}`; };
+    const cols = ult.map(r => {
+      const h = Math.max(4, mmDe(r) / max * 110);
+      return `<div class="lcol"><div class="v" style="color:${esRiego(r) ? '#1c4fb0' : '#0b6e9d'}">${fmt(mmDe(r))}</div><div class="b ${esRiego(r) ? 'lb-ri' : 'lb-ll'}" style="height:${h}px"></div></div>`;
+    }).join('');
+    const fechas = ult.map(r => `<span>${dm(r.fecha_evento)}</span>`).join('');
+    return `<div class="card full"><h2>Lluvia / Riego <span style="margin-left:auto;font-weight:500;color:var(--soil-500);">${rows.length} ${rows.length === 1 ? 'registro' : 'registros'}</span></h2>
+      <div class="lk">
+        <div class="k-ll"><small>Lluvia</small><b>${fmt(totLl)} mm</b></div>
+        <div class="k-ri"><small>Riego</small><b>${fmt(totRi)} mm</b></div>
+        <div class="k-ac"><small>Acumulado</small><b>${fmt(totLl + totRi)} mm</b></div>
+      </div>
+      <div class="lchart lchart-x">${cols}</div>
+      <div class="lfechas">${fechas}</div>
+      <div class="lleg"><span><i style="background:#4fc3f7"></i>Lluvia</span><span><i style="background:#1d4fb8"></i>Riego</span>${rows.length > 12 ? `<span style="margin-left:auto;">últimos 12 de ${rows.length}</span>` : ''}</div>
+    </div>`;
+  }
+
+  function abrirFoto(i){ fichaIdx = i; pintarFoto(); document.getElementById('lb').classList.add('open'); }
+  function pintarFoto(){
+    const f = fichaFotos[fichaIdx]; if (!f) return;
+    document.getElementById('lb-img').src = f.src;
+    document.getElementById('lb-cap').textContent = f.cap + (fichaFotos.length > 1 ? `  ·  ${fichaIdx + 1}/${fichaFotos.length}` : '');
+    document.getElementById('lb-open').href = f.src;
+    const m = fichaFotos.length > 1 ? '' : 'none';
+    document.getElementById('lb-prev').style.display = m; document.getElementById('lb-next').style.display = m;
+  }
+  function moverFoto(d){ fichaIdx = (fichaIdx + d + fichaFotos.length) % fichaFotos.length; pintarFoto(); }
+  function cerrarFoto(){ document.getElementById('lb').classList.remove('open'); }
+  async function descargarFoto(){
+    const f = fichaFotos[fichaIdx]; if (!f) return;
+    try { const b = await (await fetch(f.src)).blob(); const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = (f.src.split('/').pop().split('?')[0] || 'foto.jpg'); document.body.appendChild(a); a.click(); a.remove(); }
+    catch(e){ window.open(f.src, '_blank'); }
+  }
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') cerrarFoto(); });
+
+  // ===== PDF y compartir =====
+  function nombrePdf(){
+    const p = new URLSearchParams(location.search);
+    return `Ficha_${(p.get('p') || 'proyecto')}${p.get('m') ? '_' + p.get('m') : ''}.pdf`;
+  }
+
+  function armarRootPdf(){
+    const root = document.createElement('div');
+    root.className = 'pdfmode';
+    root.innerHTML = '<div class="wrap">' + document.getElementById('wrap').innerHTML + '</div>';
+    root.querySelectorAll('.card').forEach(c => {
+      if (c.querySelector('.empty') && !c.querySelector('.row,.kpis,.pbar,.fgrid,.obs,.lchart')) c.classList.add('vacia');
+    });
+    document.body.appendChild(root);
+    return root;
+  }
+
+  async function generarPdfBlob(){
+    const root = armarRootPdf();
+    let canvas;
+    try {
+      const espera = Promise.all([...root.querySelectorAll('img')].map(i => i.complete ? 0 : new Promise(r => { i.onload = i.onerror = r; })));
+      await Promise.race([espera, new Promise(r => setTimeout(r, 8000))]);
+      canvas = await html2canvas(root, { scale: 2, useCORS: true, backgroundColor: '#ffffff', windowWidth: 794 });
+    } finally { root.remove(); }
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+    // Una sola hoja A4: se ajusta al ancho y, si hace falta, al alto
+    const boxW = 194, boxH = 281;
+    let w = boxW, h = canvas.height / canvas.width * w;
+    if (h > boxH){ h = boxH; w = canvas.width / canvas.height * h; }
+    pdf.addImage(canvas.toDataURL('image/jpeg', 0.93), 'JPEG', (210 - w) / 2, 8, w, h);
+    return pdf.output('blob');
+  }
+
+  function bajarBlob(blob, nombre){
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = nombre;
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+  }
+
+  async function compartirFicha(canal){
+    const btns = document.querySelectorAll('.share button'); btns.forEach(b => b.disabled = true);
+    const nombre = nombrePdf();
+    const link = location.href;
+    const titulo = 'Ficha ' + (new URLSearchParams(location.search).get('p') || '');
+    try {
+      const blob = await generarPdfBlob();
+      if (canal === 'pdf'){ bajarBlob(blob, nombre); return; }
+      const file = new File([blob], nombre, { type: 'application/pdf' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })){
+        try { await navigator.share({ files: [file], title: titulo, text: titulo + ' — ' + link }); return; }
+        catch(e){ if (e && e.name === 'AbortError') return; }
+      }
+      // Sin compartir de archivos (ej. PC): baja el PDF y abre el canal con el link
+      bajarBlob(blob, nombre);
+      const txt = encodeURIComponent(titulo + ' — ' + link);
+      if (canal === 'wsp') window.open('https://wa.me/?text=' + txt, '_blank');
+      else window.location.href = 'mailto:?subject=' + encodeURIComponent(titulo) + '&body=' + txt;
+    } catch(e){
+      alert('No se pudo generar el PDF: ' + (e && e.message ? e.message : e));
+    } finally { btns.forEach(b => b.disabled = false); }
+  }
+</script>
+<div id="lb" onclick="if(event.target===this)cerrarFoto()">
+  <div class="x" onclick="cerrarFoto()">×</div>
+  <div class="nv" id="lb-prev" style="left:4px" onclick="moverFoto(-1)">‹</div>
+  <div class="nv" id="lb-next" style="right:4px" onclick="moverFoto(1)">›</div>
+  <img id="lb-img" alt="">
+  <div class="cap" id="lb-cap"></div>
+  <div class="bar2"><button onclick="descargarFoto()">⬇ Descargar</button><a id="lb-open" target="_blank" rel="noopener">Abrir original</a></div>
+</div>
+</body>
+</html>
