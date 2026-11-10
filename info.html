@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>LM Maíz — Ficha</title>
+<link rel="icon" href="icon-192.png">
+<meta name="theme-color" content="#1f5c33">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  :root{
+    --paper-100:#ffffff; --paper-200:#eef1ec;
+    --soil-900:#1c2419; --soil-700:#4a4331; --soil-500:#6b7268;
+    --grain-500:#2e7d46; --grain-600:#1f5c33; --grain-100:#e6f5ea;
+    --sky-500:#2f6fa0; --sky-600:#1f5578; --sky-100:#e5f0f8;
+    --alert-500:#c05a35; --alert-100:#f7e2d7;
+    --line:#e3e6df;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    background:var(--paper-200); color:var(--soil-900);
+    font-family:'Inter',sans-serif; min-height:100vh; min-height:100dvh;
+  }
+  .wrap{ max-width:480px; margin:0 auto; min-height:100vh; min-height:100dvh; background:var(--paper-100); }
+  header{
+    background:linear-gradient(135deg,#1a4d2c,#2e7d46); color:#fff;
+    padding:22px 20px 26px; border-radius:0 0 22px 22px;
+  }
+  header .brand{ font-family:'Space Grotesk'; font-size:13px; font-weight:700; opacity:0.85; margin-bottom:10px; }
+  header .proyecto{ font-family:'JetBrains Mono'; font-size:24px; font-weight:700; }
+  header .linea{ font-size:13px; opacity:0.85; margin-top:2px; }
+  header .matid{ margin-top:14px; background:rgba(255,255,255,0.15); border-radius:10px; padding:10px 14px; font-family:'JetBrains Mono'; font-size:14px; font-weight:700; display:inline-block; }
+  .status-pill{ display:inline-block; padding:3px 10px; border-radius:20px; font-size:11px; font-weight:600; margin-top:10px; }
+  .status-sembrado{ background:rgba(255,255,255,0.2); color:#fff; }
+  .status-cosechado{ background:#fff; color:var(--grain-600); }
+  .alert-banner{ background:var(--alert-100); color:var(--alert-500); border-radius:12px; padding:14px 16px; margin:16px 20px 0; font-size:13.5px; font-weight:600; }
+  main{ padding:20px; display:flex; flex-direction:column; gap:14px; }
+  .card{ background:#fff; border:1.5px solid var(--line); border-radius:14px; padding:16px; }
+  .card h2{ font-family:'Space Grotesk'; font-size:13.5px; font-weight:700; margin-bottom:12px; display:flex; align-items:center; gap:8px; }
+  .card h2::before{ content:''; width:4px; height:14px; background:var(--grain-500); border-radius:2px; }
+  .card.sky h2::before{ background:var(--sky-500); }
+  .kpis{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .kpi{ background:var(--paper-200); border-radius:10px; padding:10px 12px; }
+  .kpi-label{ font-size:10px; text-transform:uppercase; letter-spacing:0.04em; color:var(--soil-500); font-weight:700; }
+  .kpi-value{ font-family:'JetBrains Mono'; font-size:18px; font-weight:700; margin-top:2px; }
+  .row{ display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--line); font-size:13px; }
+  .row:last-child{ border-bottom:none; }
+  .row .rl{ color:var(--soil-500); }
+  .row .rv{ font-weight:600; font-family:'JetBrains Mono'; text-align:right; }
+  .empty{ color:var(--soil-500); font-size:12.5px; text-align:center; padding:10px 0; }
+  .loading{ text-align:center; color:var(--soil-500); font-size:13px; padding:60px 20px; }
+  .share{ display:flex; gap:8px; padding:14px 20px 0; }
+  .share button{ flex:1; border:none; border-radius:12px; padding:12px 4px; font-weight:700; font-size:12.5px; font-family:inherit; cursor:pointer; }
+  .share .s-wsp{ background:#25d366; color:#fff; } .share .s-mail{ background:var(--sky-500); color:#fff; }
+  .share .s-pdf{ background:var(--paper-200); color:var(--soil-900); border:1px solid #d8dcd3; }
+  .share button:disabled{ opacity:.6; }
+  .pbar{ display:flex; height:26px; border-radius:8px; overflow:hidden; margin:8px 0; background:var(--paper-200); }
+  .pbar div{ display:flex; align-items:center; justify-content:center; color:#fff; font-size:11px; font-weight:700; }
+  .pleg{ display:flex; flex-wrap:wrap; gap:6px 14px; font-size:11.5px; color:var(--soil-700); }
+  .pleg i{ display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:5px; }
+  .fgrid{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .fgrid .f{ position:relative; height:110px; border-radius:10px; overflow:hidden; background:var(--paper-200); cursor:zoom-in; }
+  .fgrid .f img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .fgrid .f span{ position:absolute; left:0; right:0; bottom:0; padding:14px 7px 5px; font-size:10px; font-weight:700; color:#fff; background:linear-gradient(transparent,rgba(0,0,0,.65)); }
+  #lb{ position:fixed; inset:0; z-index:10000; background:rgba(8,14,11,.93); display:none; flex-direction:column; align-items:center; justify-content:center; padding:16px; }
+  #lb.open{ display:flex; }
+  #lb img{ max-width:96vw; max-height:76vh; border-radius:12px; object-fit:contain; }
+  #lb .cap{ color:#e9f1ec; font-size:13px; margin-top:10px; text-align:center; }
+  #lb .bar2{ display:flex; gap:10px; margin-top:12px; }
+  #lb .bar2 button, #lb .bar2 a{ background:rgba(255,255,255,.14); color:#fff; border:1px solid rgba(255,255,255,.3); border-radius:99px; padding:9px 18px; font-size:13px; font-weight:600; cursor:pointer; text-decoration:none; font-family:inherit; }
+  #lb .x{ position:absolute; top:12px; right:18px; font-size:32px; color:#fff; cursor:pointer; line-height:1; }
+  #lb .nv{ position:absolute; top:50%; transform:translateY(-50%); font-size:40px; color:#fff; cursor:pointer; padding:8px 12px; user-select:none; }
+  footer{ text-align:center; color:var(--soil-500); font-size:11px; padding:20px; }
+</style>
+</head>
+<body>
+<div class="wrap" id="wrap">
+  <div class="loading" id="loading">Cargando ficha…</div>
+</div>
+
+<script>
+  const SUPABASE_URL = "https://aljgksevggwtfndqxoiy.supabase.co";
+  const SUPABASE_KEY = "sb_publishable_IEGX-ej9_w-tksybzT2Vfw_riE98P7m";
+  const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  function fechaLegible(iso){
+    if (!iso) return '—';
+    const [y,m,d] = iso.slice(0,10).split('-');
+    return `${d}/${m}/${y}`;
+  }
+  function statusClass(status){
+    if (status === 'Sembrado') return 'status-sembrado';
+    if (status === 'Cosechado') return 'status-cosechado';
+    return 'status-sembrado';
+  }
+
+  async function cargarFicha(){
+    const params = new URLSearchParams(location.search);
+    const codigoProyecto = params.get('p');
+    const matid = params.get('m');
+    const wrap = document.getElementById('wrap');
+
+    if (!codigoProyecto){
+      wrap.innerHTML = `<div class="loading">Falta el código de proyecto en el link.</div>`;
+      return;
+    }
+
+    // Búsqueda tolerante: sin distinguir mayúsculas/minúsculas ni espacios, y
+    // sin maybeSingle() — el mismo código de proyecto (ej. ILM002) existe en
+    // varias campañas, y maybeSingle() falla si encuentra más de una fila.
+    // Si hay varias, se elige la campaña más reciente.
+    const codigoLimpio = codigoProyecto.trim();
+    const { data: proyectos, error: errProy } = await sb
+      .from('lm_proyectos')
+      .select('id, proyecto, nombre_linea, status, categoria, campana')
+      .ilike('proyecto', codigoLimpio);
+
+    if (errProy){
+      wrap.innerHTML = `<div class="loading">Error consultando el proyecto "${codigoLimpio}": ${errProy.message}</div>`;
+      return;
+    }
+    if (!proyectos || proyectos.length === 0){
+      wrap.innerHTML = `<div class="loading">No se encontró el proyecto "${codigoLimpio}".</div>`;
+      return;
+    }
+    const proyecto = [...proyectos].sort((a,b) => String(b.campana||'').localeCompare(String(a.campana||'')))[0];
+
+    const pid = proyecto.id;
+    const [
+      { data: siembra }, { data: floracion }, { data: cosecha },
+      { data: aplicProtocolo }, { data: aplicLibres },
+      { data: humedad }, { data: lluvia }, { data: observaciones },
+      { data: descarte }, { data: recFeno }, { data: recEsp }, { data: lecturas },
+    ] = await Promise.all([
+      sb.from('lm_siembra').select('*').eq('proyecto_id', pid).maybeSingle(),
+      sb.from('lm_floracion').select('*').eq('proyecto_id', pid).maybeSingle(),
+      sb.from('lm_cosecha').select('*').eq('proyecto_id', pid).maybeSingle(),
+      sb.from('lm_aplicaciones_protocolo').select('*').eq('proyecto_id', pid).order('n_aplicacion'),
+      sb.from('lm_aplicaciones_libres').select('*').eq('proyecto_id', pid).order('fecha', { ascending:false }),
+      sb.from('lm_control_humedad').select('*').eq('proyecto_id', pid).order('fecha', { ascending:false }).limit(5),
+      sb.from('lm_lluvias_riego').select('*').eq('proyecto_id', pid).order('fecha_evento', { ascending:false }).limit(5),
+      sb.from('lm_observaciones_campo').select('*').eq('proyecto_id', pid).order('fecha', { ascending:false }).limit(5),
+      matid ? sb.from('lm_descartes_familia').select('*').eq('proyecto_id', pid).eq('matid_descarte', matid).maybeSingle() : Promise.resolve({data:null}),
+      matid ? sb.from('lm_recuentos_fenologia').select('*').eq('proyecto_id', pid).eq('matid', matid).order('fecha', { ascending:false }) : Promise.resolve({data:[]}),
+      matid ? sb.from('lm_recuentos_especiales').select('*').eq('proyecto_id', pid).eq('matid', matid) : Promise.resolve({data:[]}),
+      matid ? sb.from('lm_lecturas_protocolo').select('*').eq('proyecto_id', pid).eq('matid', matid).order('fecha', { ascending:false }) : Promise.resolve({data:[]}),
+    ]);
+
+    let html = `
+      <header>
+        <div class="brand">🌽 LM Maíz</div>
+        <div class="proyecto">${proyecto.proyecto}</div>
+        <div class="linea">${proyecto.nombre_linea || 's/línea'} · Campaña ${proyecto.campana || '—'}</div>
+        ${matid ? `<div class="matid">MATID: ${matid}</div>` : ''}
+        <div><span class="status-pill ${statusClass(proyecto.status)}">${proyecto.status || 'Sin status'}</span></div>
+      </header>
+      <div class="share noprint">
+        <button class="s-wsp" onclick="compartirFicha('wsp')">📲 WhatsApp</button>
+        <button class="s-mail" onclick="compartirFicha('mail')">✉ Mail</button>
+        <button class="s-pdf" onclick="compartirFicha('pdf')">⬇ PDF</button>
+      </div>
+    `;
+
+    if (descarte){
+      html += `<div class="alert-banner">⚠️ Esta familia fue descartada — ${descarte.motivo || 'sin motivo registrado'} (${fechaLegible(descarte.fecha)})${descarte.comentario ? ': ' + descarte.comentario : ''}</div>`;
+    }
+
+    html += `<main>`;
+
+    // ---- Fechas clave del proyecto ----
+    html += `<div class="card"><h2>Fechas clave</h2>
+      <div class="row"><span class="rl">Siembra</span><span class="rv">${siembra && siembra.fecha_siembra ? fechaLegible(siembra.fecha_siembra) : '—'}</span></div>
+      <div class="row"><span class="rl">Floración 50%</span><span class="rv">${floracion && floracion.floracion_50 ? fechaLegible(floracion.floracion_50) : '—'}</span></div>
+      <div class="row"><span class="rl">Cosecha</span><span class="rv">${cosecha && cosecha.fecha ? fechaLegible(cosecha.fecha) : '—'}</span></div>
+    </div>`;
+
+    // ---- Recuentos de fenología (cantidad de plantas) del MATID ----
+    if (matid){
+      if (recFeno && recFeno.length > 0){
+        const ultimo = recFeno[0];
+        html += `<div class="card"><h2>Cantidad de plantas — MATID</h2>
+          <div class="kpis">
+            <div class="kpi"><div class="kpi-label">V2V3</div><div class="kpi-value">${ultimo.v2v3 ?? '—'}</div></div>
+            <div class="kpi"><div class="kpi-label">Pre floración</div><div class="kpi-value">${ultimo.pre_floracion ?? '—'}</div></div>
+            <div class="kpi"><div class="kpi-label">Polinizadas</div><div class="kpi-value">${ultimo.plantas_polinizadas ?? '—'}</div></div>
+            <div class="kpi"><div class="kpi-label">Pre cosecha</div><div class="kpi-value">${ultimo.plantas_pre_cosecha ?? '—'}</div></div>
+          </div>
+          <div class="empty" style="margin-top:8px;">Último recuento: ${fechaLegible(ultimo.fecha)}${recFeno.length > 1 ? ` · ${recFeno.length} recuentos en total` : ''}</div>
+        </div>`;
+      } else {
+        html += `<div class="card"><h2>Cantidad de plantas — MATID</h2><div class="empty">Sin recuentos de fenología registrados para este MATID.</div></div>`;
+      }
+
+      // ---- Población vs problemática (%) ----
+      if (recEsp && recEsp.length > 0){
+        const base = baseDePlantas(recFeno);
+        html += `<div class="card"><h2>Población vs problemática detectada</h2>
+          <div style="font-size:12px;color:var(--soil-500);">${base ? `Plantas evaluadas: <b style="color:var(--soil-900)">${base.n}</b> (base: recuento ${base.etapa})` : 'Sin recuento de plantas del MATID: se muestran solo cantidades.'}</div>
+          ${recEsp.map(r => graficoPoblacion(r, base)).join('')}
+        </div>`;
+
+        // ---- Fotos de recuentos especiales ----
+        fichaFotos = recEsp.filter(r => r.foto_url).map(r => ({ src: r.foto_url, cap: r.motivo || 'Recuento especial' }));
+        if (fichaFotos.length){
+          html += `<div class="card"><h2>Fotos de recuentos especiales <span style="margin-left:auto;font-weight:500;color:var(--soil-500);">${fichaFotos.length}</span></h2>
+            <div class="fgrid">${fichaFotos.map((f,i) => `<div class="f" onclick="abrirFoto(${i})"><img src="${esc(f.src)}" crossorigin="anonymous" loading="lazy" alt="" onerror="if(!this.dataset.r){this.dataset.r=1;this.removeAttribute('crossorigin');this.src=this.src}"><span>${esc(f.cap)}</span></div>`).join('')}</div>
+            <div class="empty noprint" style="padding:8px 0 0;">Tocá una foto para ampliarla</div></div>`;
+        }
+      }
+
+      // ---- Recuentos especiales ----
+      html += `<div class="card"><h2>Recuentos especiales</h2>`;
+      if (recEsp && recEsp.length > 0){
+        recEsp.forEach(r => {
+          html += `<div class="row"><span class="rl">${r.motivo || 'Sin motivo'}</span><span class="rv">Muy ${r.cantidad_muy_afectadas??0} · Media ${r.cantidad_medianamente_afectadas??0} · Poco ${r.cantidad_poco_afectadas??0}</span></div>`;
+        });
+      } else {
+        html += `<div class="empty">Sin recuentos especiales para este MATID.</div>`;
+      }
+      html += `</div>`;
+
+      // ---- Lecturas de protocolo (fitotoxicidad) ----
+      if (lecturas && lecturas.length > 0){
+        html += `<div class="card"><h2>Lectura de aplicación de Protocolo</h2>`;
+        lecturas.forEach(l => {
+          html += `<div class="row"><span class="rl">${fechaLegible(l.fecha)}</span><span class="rv">0×${l.cantidad_0??0} 1×${l.cantidad_1??0} 2×${l.cantidad_2??0} 3×${l.cantidad_3??0} 4×${l.cantidad_4??0} 5×${l.cantidad_5??0}</span></div>`;
+        });
+        html += `</div>`;
+      }
+    }
+
+    // ---- Aplicaciones de Protocolo (a nivel de todo el proyecto) ----
+    html += `<div class="card sky"><h2>Aplicaciones de Protocolo (proyecto)</h2>`;
+    if (aplicProtocolo && aplicProtocolo.length > 0){
+      aplicProtocolo.forEach(a => {
+        html += `<div class="row"><span class="rl">Aplic. ${a.n_aplicacion} — ${a.producto || '—'}</span><span class="rv">${a.dosis ?? '—'} · ${fechaLegible(a.fecha)}</span></div>`;
+      });
+    } else {
+      html += `<div class="empty">Sin aplicaciones de protocolo cargadas.</div>`;
+    }
+    html += `</div>`;
+
+    // ---- Protección de cultivos (aplicaciones libres) ----
+    html += `<div class="card sky"><h2>Protección de Cultivos (proyecto)</h2>`;
+    if (aplicLibres && aplicLibres.length > 0){
+      aplicLibres.forEach(a => {
+        html += `<div class="row"><span class="rl">${a.tipo || '—'} — ${a.producto || '—'}</span><span class="rv">${fechaLegible(a.fecha)}</span></div>`;
+      });
+    } else {
+      html += `<div class="empty">Sin aplicaciones libres cargadas.</div>`;
+    }
+    html += `</div>`;
+
+    // ---- Control de humedad ----
+    html += `<div class="card"><h2>Control de Humedad (proyecto)</h2>`;
+    if (humedad && humedad.length > 0){
+      humedad.forEach(h => {
+        html += `<div class="row"><span class="rl">${fechaLegible(h.fecha)}</span><span class="rv">${h.humedad ?? '—'}%</span></div>`;
+      });
+    } else {
+      html += `<div class="empty">Sin lecturas de humedad cargadas.</div>`;
+    }
+    html += `</div>`;
+
+    // ---- Lluvia / Riego ----
+    html += `<div class="card"><h2>Lluvia / Riego (proyecto)</h2>`;
+    if (lluvia && lluvia.length > 0){
+      lluvia.forEach(l => {
+        html += `<div class="row"><span class="rl">${l.tipo_evento || '—'}</span><span class="rv">${l.mm ?? '—'} mm · ${fechaLegible(l.fecha_evento)}</span></div>`;
+      });
+    } else {
+      html += `<div class="empty">Sin eventos de lluvia/riego cargados.</div>`;
+    }
+    html += `</div>`;
+
+    // ---- Observaciones ----
+    if (observaciones && observaciones.length > 0){
+      html += `<div class="card"><h2>Observaciones de campo (proyecto)</h2>`;
+      observaciones.forEach(o => {
+        html += `<div class="row"><span class="rl">${(o.comentario || 'Sin comentario').slice(0,60)}</span><span class="rv">${fechaLegible(o.fecha)}</span></div>`;
+      });
+      html += `</div>`;
+    }
+
+    html += `</main><footer>LM Maíz · ficha pública, solo lectura</footer>`;
+
+    wrap.innerHTML = html;
+  }
+
+  cargarFicha();
+
+  // ===== Helpers de la ficha =====
+  const esc = t => String(t ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  let fichaFotos = [], fichaIdx = 0;
+
+  function baseDePlantas(recFeno){
+    if (!recFeno || !recFeno.length) return null;
+    const u = recFeno[0];
+    const cand = [['pre cosecha', u.plantas_pre_cosecha], ['polinizadas', u.plantas_polinizadas], ['pre floración', u.pre_floracion], ['V2V3', u.v2v3]];
+    for (const [n, v] of cand){ if (v != null && Number(v) > 0) return { n: Number(v), etapa: n }; }
+    return null;
+  }
+
+  function graficoPoblacion(r, base){
+    const muy = Number(r.cantidad_muy_afectadas) || 0, med = Number(r.cantidad_medianamente_afectadas) || 0, poco = Number(r.cantidad_poco_afectadas) || 0;
+    const afect = muy + med + poco;
+    const titulo = `<div style="font-size:12px;font-weight:700;margin-top:10px;">${esc(r.motivo || 'Sin motivo')}</div>`;
+    if (!base){
+      return titulo + `<div class="empty" style="text-align:left;padding:4px 0;">Muy ${muy} · Media ${med} · Poco ${poco} — sin recuento de plantas para calcular %.</div>`;
+    }
+    const total = Math.max(base.n, afect);
+    const sanas = total - afect;
+    const seg = [
+      ['Sanas', sanas, '#2e7d46'], ['Poco afectadas', poco, '#e3c84a'],
+      ['Medianamente', med, '#e08a2e'], ['Muy afectadas', muy, '#c0392b'],
+    ];
+    const pct = v => (v / total * 100);
+    const barra = seg.filter(x => x[1] > 0).map(x => {
+      const w = pct(x[1]);
+      return `<div style="width:${w}%;background:${x[2]};${x[0]==='Poco afectadas' ? 'color:#4a4331;' : ''}">${w >= 9 ? Math.round(w) + '%' : ''}</div>`;
+    }).join('');
+    const leyenda = seg.map(x => `<span><i style="background:${x[2]}"></i>${x[0]} ${pct(x[1]).toFixed(1).replace('.0','')}%</span>`).join('');
+    return titulo + `<div class="pbar">${barra}</div><div class="pleg">${leyenda}</div>`;
+  }
+
+  function abrirFoto(i){ fichaIdx = i; pintarFoto(); document.getElementById('lb').classList.add('open'); }
+  function pintarFoto(){
+    const f = fichaFotos[fichaIdx]; if (!f) return;
+    document.getElementById('lb-img').src = f.src;
+    document.getElementById('lb-cap').textContent = f.cap + (fichaFotos.length > 1 ? `  ·  ${fichaIdx + 1}/${fichaFotos.length}` : '');
+    document.getElementById('lb-open').href = f.src;
+    const m = fichaFotos.length > 1 ? '' : 'none';
+    document.getElementById('lb-prev').style.display = m; document.getElementById('lb-next').style.display = m;
+  }
+  function moverFoto(d){ fichaIdx = (fichaIdx + d + fichaFotos.length) % fichaFotos.length; pintarFoto(); }
+  function cerrarFoto(){ document.getElementById('lb').classList.remove('open'); }
+  async function descargarFoto(){
+    const f = fichaFotos[fichaIdx]; if (!f) return;
+    try { const b = await (await fetch(f.src)).blob(); const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = (f.src.split('/').pop().split('?')[0] || 'foto.jpg'); document.body.appendChild(a); a.click(); a.remove(); }
+    catch(e){ window.open(f.src, '_blank'); }
+  }
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') cerrarFoto(); });
+
+  // ===== PDF y compartir =====
+  function nombrePdf(){
+    const p = new URLSearchParams(location.search);
+    return `Ficha_${(p.get('p') || 'proyecto')}${p.get('m') ? '_' + p.get('m') : ''}.pdf`;
+  }
+
+  async function generarPdfBlob(){
+    const wrap = document.getElementById('wrap');
+    document.querySelectorAll('.noprint').forEach(e => e.style.display = 'none');
+    let canvas;
+    try { canvas = await html2canvas(wrap, { scale: 2, useCORS: true, backgroundColor: '#ffffff', windowWidth: wrap.scrollWidth }); }
+    finally { document.querySelectorAll('.noprint').forEach(e => e.style.display = ''); }
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+    const pw = 210, ph = 297, mx = 8;
+    const imgW = pw - mx * 2;
+    const pxPorMm = canvas.width / imgW;
+    const pagPx = Math.floor((ph - 16) * pxPorMm);
+    let y = 0, primera = true;
+    while (y < canvas.height){
+      const h = Math.min(pagPx, canvas.height - y);
+      const part = document.createElement('canvas');
+      part.width = canvas.width; part.height = h;
+      part.getContext('2d').drawImage(canvas, 0, y, canvas.width, h, 0, 0, canvas.width, h);
+      if (!primera) pdf.addPage();
+      pdf.addImage(part.toDataURL('image/jpeg', 0.92), 'JPEG', mx, 8, imgW, h / pxPorMm);
+      primera = false; y += h;
+    }
+    return pdf.output('blob');
+  }
+
+  function bajarBlob(blob, nombre){
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = nombre;
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+  }
+
+  async function compartirFicha(canal){
+    const btns = document.querySelectorAll('.share button'); btns.forEach(b => b.disabled = true);
+    const nombre = nombrePdf();
+    const link = location.href;
+    const titulo = 'Ficha ' + (new URLSearchParams(location.search).get('p') || '');
+    try {
+      const blob = await generarPdfBlob();
+      if (canal === 'pdf'){ bajarBlob(blob, nombre); return; }
+      const file = new File([blob], nombre, { type: 'application/pdf' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })){
+        try { await navigator.share({ files: [file], title: titulo, text: titulo + ' — ' + link }); return; }
+        catch(e){ if (e && e.name === 'AbortError') return; }
+      }
+      // Sin compartir de archivos (ej. PC): baja el PDF y abre el canal con el link
+      bajarBlob(blob, nombre);
+      const txt = encodeURIComponent(titulo + ' — ' + link);
+      if (canal === 'wsp') window.open('https://wa.me/?text=' + txt, '_blank');
+      else window.location.href = 'mailto:?subject=' + encodeURIComponent(titulo) + '&body=' + txt;
+    } catch(e){
+      alert('No se pudo generar el PDF: ' + (e && e.message ? e.message : e));
+    } finally { btns.forEach(b => b.disabled = false); }
+  }
+</script>
+<div id="lb" onclick="if(event.target===this)cerrarFoto()">
+  <div class="x" onclick="cerrarFoto()">×</div>
+  <div class="nv" id="lb-prev" style="left:4px" onclick="moverFoto(-1)">‹</div>
+  <div class="nv" id="lb-next" style="right:4px" onclick="moverFoto(1)">›</div>
+  <img id="lb-img" alt="">
+  <div class="cap" id="lb-cap"></div>
+  <div class="bar2"><button onclick="descargarFoto()">⬇ Descargar</button><a id="lb-open" target="_blank" rel="noopener">Abrir original</a></div>
+</div>
+</body>
+</html>
